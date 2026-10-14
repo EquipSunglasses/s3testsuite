@@ -1,0 +1,109 @@
+# s3tests configuration
+#
+# Search order when -c is not given: $S3TESTS_CONF, ./s3tests.conf,
+# ~/.s3tests.conf, <prefix>/etc/s3tests/s3tests.conf,
+# /etc/s3tests/s3tests.conf. The file holds secrets: keep it mode 600.
+#
+# Environment variables override the file: S3TESTS_ENDPOINT, S3TESTS_REGION,
+# S3TESTS_ADDRESSING, S3TESTS_VERIFY_SSL, S3TESTS_CA_BUNDLE,
+# S3TESTS_ACCESS_KEY, S3TESTS_SECRET_KEY, S3TESTS_SESSION_TOKEN,
+# S3TESTS_ALT_ACCESS_KEY, S3TESTS_ALT_SECRET_KEY.
+
+[target]
+# Name of the system under test, used in results and comparisons (e.g. vendor-a-lab).
+# Default: the endpoint host name.
+label = 
+# e.g. https://s3.lab.example.internal or https://s3.amazonaws.com
+endpoint = 
+# Must match the region the gateway expects in the signature scope
+# (us-east-1 unless the platform is configured otherwise).
+region = us-east-1
+# path: https://host/bucket/key   virtual: https://bucket.host/key (needs wildcard DNS and cert)
+addressing_style = path
+verify_ssl = true
+# PEM file of trusted CAs. /etc/ssl/cert.pem is the macOS system bundle; on RHEL use
+# /etc/pki/tls/certs/ca-bundle.crt (the RPM sets this), or add your corporate root CA.
+# If the file does not exist, s3tests warns and uses the system trust store.
+ca_bundle = /etc/ssl/cert.pem
+# read timeout per request; connect_timeout bounds TCP + TLS setup
+timeout = 60
+connect_timeout = 10
+# retries for connect failures, dropped kept-alive connections and 503 SlowDown
+retries = 3
+# reuse connections: about one per test instead of one per request
+keepalive = true
+# Every bucket the suite creates starts with this; all are deleted after each test.
+# `s3tests --cleanup` deletes every bucket with this prefix, so keep it unique to the suite.
+bucket_prefix = s3tests-
+# Sent as LocationConstraint on CreateBucket when set (if the gateway requires one).
+# location_constraint = 
+# SSE-C tests are skipped over plain http unless this is true
+# (only if the gateway is configured to allow SSE-C without TLS).
+allow_insecure_sse = false
+
+[main]
+access_key = 
+secret_key = 
+# session_token = 
+# user_id is discovered from ListBuckets Owner/ID when unset
+# user_id = 
+
+[alt]
+# Second user for cross-user permission tests. Leave blank to skip them.
+access_key = 
+secret_key = 
+# Principal used in bucket policies that grant this user access.
+# Default: arn:aws:iam:::user/<owner id>. With tenants/accounts, e.g. arn:aws:iam::<tenant>:user/<uid>
+# principal_arn = 
+
+[run]
+# smoke (21 core tests), standard (140), or full (190). --smoke/--standard/--full override.
+tier = full
+jobs = 4
+# Hard time limits. A test that runs past test_timeout is stopped at its next
+# request and reported as ERROR; cleanup then gets cleanup_timeout seconds.
+test_timeout = 300
+cleanup_timeout = 180
+# Escape plan (see README "When a run fails or hangs"):
+# A test stuck inside a single request is abandoned this many seconds after
+# its time limit; its buckets are removed from another thread.
+hang_grace = 60
+# After this many consecutive connection errors the run pauses and waits up to
+# outage_wait seconds for the endpoint to come back, then resumes (0 = never pause).
+breaker = 5
+outage_wait = 120
+# Re-run once any test that failed only because of a connection error.
+rerun_connection_errors = true
+# At the end of a run, keep retrying buckets that could not be removed this long.
+final_cleanup_window = 180
+# At the end of a run, also remove test buckets (bucket_prefix) left by earlier runs
+# that kept no journal (older versions, other hosts, a deleted state directory).
+# Only buckets older than stale_bucket_minutes are touched, so runs in progress
+# elsewhere are safe; the minimum is test_timeout + cleanup_timeout + hang_grace + 5 min.
+sweep_stale_buckets = true
+stale_bucket_minutes = 60
+# Seconds to wait for ACL / policy / public access changes to take effect (AWS
+# needs a few seconds; 0 makes the checks strict).
+propagation_timeout = 20
+# Abort the whole run (with cleanup) after this many minutes (0 = no limit).
+max_runtime = 0
+# Every bucket a run creates is journaled here so buckets left by a crash or
+# kill -9 are removed automatically on the next run (or with --recover).
+# state_dir = ~/.local/state/s3tests
+auto_recover = true
+# Tags to skip on every run (see `s3tests --list-tags`). Typical exclusions
+# when the gateway does not have the feature configured: sse_s3, sse_c, worm
+exclude_tags = 
+# include_tags = 
+large_object_mb = 16
+part_size_mb = 5
+# Seconds to wait for lifecycle expiration to remove objects; 0 skips that test.
+# Use with a lab gateway whose lifecycle interval is shortened for testing, e.g. 180.
+lifecycle_wait_seconds = 0
+
+[expected_failures]
+# Known gaps on your platform. Matching failures report XFAIL and do not fail
+# the run; a listed test that passes reports XPASS. Globs are allowed.
+# test.id = reason
+# object.test_checksum_* = flexible checksums not supported by this gateway version
+# bucket.test_bucket_name_invalid_forms = relaxed bucket names are enabled here

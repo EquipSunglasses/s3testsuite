@@ -31,7 +31,8 @@ where bringing in third-party packages is hard.
 - [Results and exit codes](#results-and-exit-codes)
 - [Tracking known gaps](#tracking-known-gaps)
 - [Test coverage](#test-coverage)
-- [CI and scheduled runs](#ci-and-scheduled-runs)
+- [Comparing solutions and scheduled runs](#comparing-solutions-and-scheduled-runs)
+- [Results file format](#results-file-format)
 - [Gateway notes](#gateway-notes)
 - [Running against AWS S3](#running-against-aws-s3)
 - [Troubleshooting](#troubleshooting)
@@ -43,7 +44,7 @@ where bringing in third-party packages is hard.
 ## Quick start
 
 ```
-sudo yum install ./s3tests-1.1.0-1.el8.noarch.rpm   # RHEL 7: the .el7 RPM
+sudo yum install ./s3tests-1.2.1-1.el8.noarch.rpm   # RHEL 7: the .el7 RPM
 s3tests --selftest                     # offline check, no endpoint needed
 sudoedit /etc/s3tests/s3tests.conf     # set endpoint and keys
 s3tests --check                        # TLS, DNS and credentials
@@ -70,8 +71,8 @@ There are two RPMs with the same files; pick by release:
 
 | release | RPM | install | depends on |
 |---|---|---|---|
-| RHEL 7 / CentOS 7 | `s3tests-1.1.0-1.el7.noarch.rpm` | `sudo yum install ./s3tests-1.1.0-1.el7.noarch.rpm` | `bash`, `python3` |
-| RHEL 8, 9, 10 | `s3tests-1.1.0-1.el8.noarch.rpm` | `sudo yum install ./s3tests-1.1.0-1.el8.noarch.rpm` (or `dnf`) | `bash`, `(python3 or platform-python)` |
+| RHEL 7 / CentOS 7 | `s3tests-1.2.1-1.el7.noarch.rpm` | `sudo yum install ./s3tests-1.2.1-1.el7.noarch.rpm` | `bash`, `python3` |
+| RHEL 8, 9, 10 | `s3tests-1.2.1-1.el8.noarch.rpm` | `sudo yum install ./s3tests-1.2.1-1.el8.noarch.rpm` (or `dnf`) | `bash`, `(python3 or platform-python)` |
 
 `rpm -ivh` works too. On RHEL 8 and later `yum` is `dnf`, so the same
 commands apply. The el8 RPM uses a rich dependency that RHEL 7's rpm (4.11)
@@ -97,7 +98,7 @@ Files:
 /usr/share/s3tests/s3tests/         Python package (runs with -B, writes no .pyc)
 /etc/s3tests/s3tests.conf           config, %config(noreplace), mode 0600 root
 /etc/s3tests/s3tests.conf.sample    reference copy of every option
-/usr/share/doc/s3tests-1.1.0/       README, examples/nightly.sh
+/usr/share/doc/s3tests-1.2.1/       README, examples/nightly.sh
 ```
 
 Upgrades keep your edited `/etc/s3tests/s3tests.conf`. Remove with
@@ -136,14 +137,14 @@ bash, coreutils and the system Python, and touch nothing outside the chosen pref
 
 ### Option 1: self-extracting installer (one file)
 
-Copy `s3tests-1.1.0.run` to the host and run it:
+Copy `s3tests-1.2.1.run` to the host and run it:
 
 ```
-sh s3tests-1.1.0.run                     # as root: /usr/local; as a user: ~/.local
-sh s3tests-1.1.0.run --user              # ~/.local/bin/s3tests, config ~/.s3tests.conf
-sh s3tests-1.1.0.run --prefix /opt/s3tests
-sh s3tests-1.1.0.run --verify            # check the embedded SHA-256, install nothing
-sh s3tests-1.1.0.run --extract /tmp/x    # unpack only, to inspect before installing
+sh s3tests-1.2.1.run                     # as root: /usr/local; as a user: ~/.local
+sh s3tests-1.2.1.run --user              # ~/.local/bin/s3tests, config ~/.s3tests.conf
+sh s3tests-1.2.1.run --prefix /opt/s3tests
+sh s3tests-1.2.1.run --verify            # check the embedded SHA-256, install nothing
+sh s3tests-1.2.1.run --extract /tmp/x    # unpack only, to inspect before installing
 ```
 
 The file is a short shell script followed by the release tarball. Its
@@ -153,7 +154,7 @@ is refused. Build it with `make run`.
 ### Option 2: tarball and install.sh
 
 ```
-tar xzf s3tests-1.1.0.tar.gz && cd s3tests-1.1.0
+tar xzf s3tests-1.2.1.tar.gz && cd s3tests-1.2.1
 ./install.sh --user                      # or: sudo ./install.sh, or --prefix /opt/s3tests
 ```
 
@@ -189,18 +190,18 @@ Collections.
 From the source tarball:
 
 ```
-tar xzf s3tests-1.1.0.tar.gz && cd s3tests-1.1.0
+tar xzf s3tests-1.2.1.tar.gz && cd s3tests-1.2.1
 
 ./install.sh --user          # ~/.local/bin/s3tests, creates ~/.s3tests.conf (mode 600)
 sudo ./install.sh            # /usr/local, same layout as the RPM
-make macpkg                  # dist/s3tests-1.1.0.pkg for other Macs (needs Xcode CLT)
-sudo installer -pkg dist/s3tests-1.1.0.pkg -target /
+make macpkg                  # dist/s3tests-1.2.1.pkg for other Macs (needs Xcode CLT)
+sudo installer -pkg dist/s3tests-1.2.1.pkg -target /
 ```
 
 Set `SIGN_IDENTITY="Developer ID Installer: ..."` before `make macpkg` to sign
 the package. Uninstall with `sudo /usr/local/share/s3tests/uninstall.sh` (or
 `~/.local/share/s3tests/uninstall.sh --user`); your config is left in place.
-The self-extracting installer (`sh s3tests-1.1.0.run --user`) also works on
+The self-extracting installer (`sh s3tests-1.2.1.run --user`) also works on
 macOS.
 
 To run straight from a checkout on any OS, without installing:
@@ -270,6 +271,8 @@ exclude_tags = sse_s3
 | run | `outage_wait` | `120` | seconds a paused run waits for the endpoint before stopping (0 = stop at once) |
 | run | `rerun_connection_errors` | `true` | re-run once a test that failed only on a connection error |
 | run | `final_cleanup_window` | `180` | seconds the end of a run keeps retrying leftover buckets |
+| run | `sweep_stale_buckets` | `true` | at the end of a run, remove test buckets left by earlier untracked runs |
+| run | `stale_bucket_minutes` | `60` | minimum age of a test bucket before the sweep removes it |
 | run | `propagation_timeout` | `20` | seconds to wait for ACL/policy changes to take effect (0 = strict) |
 | run | `max_runtime` | `0` | minutes before the run aborts with cleanup (0 = no limit) |
 | run | `state_dir` | `~/.local/state/s3tests` | crash-recovery journals |
@@ -304,6 +307,8 @@ s3tests -vv ...                          also request/response headers (signatur
 s3tests --fail-fast                      stop at the first failure
 s3tests --list                           selected tests and their tags
 s3tests --list-tags                      tags with test counts
+s3tests -q ...                           print only failures and the summary
+s3tests --version                        version, build, install path and Python
 ```
 
 Test ids are `module.test_name`, for example `multipart.test_multipart_abort`.
@@ -331,6 +336,29 @@ and those tags. Tiers are nested, and `--list` shows each test's tier.
 Set a default with `[run] tier`.
 
 ## Cleaning up leftover buckets
+
+Cleanup is automatic at the end of every run, successful or not:
+
+1. Every CreateBucket is recorded *before* the request is sent, so a bucket
+   whose response is lost (timeout, reset) or whose test fails right after
+   creating it is still removed.
+2. Each test removes its buckets when it finishes.
+3. Buckets that could not be removed are retried until `final_cleanup_window`.
+4. The run then checks against the endpoint (ListBuckets, then HEAD for
+   anything still listed) that every bucket it created is gone, and removes
+   any it finds.
+5. Test buckets left by earlier runs that kept no journal (older versions,
+   other hosts, a deleted state directory) are removed when they are older
+   than `stale_bucket_minutes` (default 60), so a run in progress elsewhere is
+   never touched. Set `sweep_stale_buckets = false` to turn this off.
+
+The last line of every run states the outcome:
+
+```
+Cleanup: 248 test bucket(s) created, 248 removed, 0 remain (verified against the endpoint); 10 stale bucket(s) from earlier runs removed
+```
+
+The same figures are in `results.json` under `run.cleanup`.
 
 Every test removes its own buckets. If cleanup fails, the run retries those
 buckets once at the end and prints any that remain (exit code 1). A run
@@ -385,6 +413,7 @@ results. Pass or fail is carried by the exit status, not the wording.
 | 2 | usage or configuration error |
 | 3 | endpoint unreachable, or credentials rejected by the preflight ListBuckets |
 | 4 | run stopped: endpoint unreachable past `outage_wait`, or `--max-runtime` |
+| 5 | with `--fail-on-regression`: a test that passed in the previous run fails now |
 | 130 | interrupted (Ctrl-C, SIGTERM, SIGHUP) |
 
 Failure lines show the expected and actual status, the S3 error code and the
@@ -520,26 +549,152 @@ Useful tags: `multiuser` (needs `[alt]`), `anonymous`, `permissions`,
 `checksum`, `presign`, `sse_c`, `sse_s3`, `worm`, `slow`, `large`. Run
 `s3tests --list-tags` for the full list.
 
-## CI and scheduled runs
+## Comparing solutions and scheduled runs
 
-Jenkins or GitLab:
+Give each system under test a label and point every run at one results
+directory. Everything else (comparison, regression detection, history) works
+from what accumulates there.
 
-```
-export S3TESTS_ENDPOINT=https://s3.lab.example.internal
-export S3TESTS_ACCESS_KEY=... S3TESTS_SECRET_KEY=...
-s3tests -c ci.conf -j 8 --no-color --junit results/junit.xml --json results/results.json
-```
-
-Publish `results/junit.xml` with the JUnit plugin. Exit code 1 fails the
-stage on regressions while XFAIL entries keep known gaps from blocking it.
-
-Cron, with dated results and 30-day retention:
-
-```
-0 2 * * * /usr/share/doc/s3tests-1.1.0/examples/nightly.sh /etc/s3tests/lab.conf /etc/s3tests/stage.conf
+```ini
+[target]
+label = vendor-a-lab          # the name used in comparisons; default is the endpoint host
 ```
 
-`RESULTS_DIR` (default `/var/tmp/s3tests`) and `KEEP_DAYS` adjust it.
+```
+s3tests --results-dir /var/lib/s3tests/results --fail-on-regression
+```
+
+Each run is filed under the label with its UTC start time and a run id:
+
+```
+/var/lib/s3tests/results/
+  vendor-a-lab/
+    20261013T020001Z-6f111e5fc539/
+      results.json      the run, schema s3tests.results/1 (see below)
+      junit.xml         for CI dashboards
+      console.log       what the run printed
+      changes.txt       differences from the previous run of this label
+    latest.json         copy of the newest results.json that actually ran
+    history.jsonl       one line per run, including runs that could not start
+  vendor-b-lab/
+    ...
+```
+
+At the end of each run s3tests compares it with the previous run of the same
+label and prints regressions, fixes and changed failures. With
+`--fail-on-regression` the exit status is 5 when anything regressed, so a
+scheduler can alert on new problems while known failures (exit 1) stay quiet.
+A run that cannot reach its endpoint is still recorded (`DID NOT START` in
+the trend), without replacing `latest.json`.
+
+Analysis commands work on saved results and need no endpoint:
+
+```
+s3tests --compare /var/lib/s3tests/results                     latest run of every label, side by side
+s3tests --compare /var/lib/s3tests/results --format html -o compare.html
+s3tests --compare /var/lib/s3tests/results --format csv  -o compare.csv
+s3tests --compare a/results.json b/results.json --all          specific runs, every test listed
+s3tests --diff OLD/results.json NEW/results.json               regressions and fixes; exit 1 on regressions
+s3tests --trend /var/lib/s3tests/results/vendor-a-lab          pass rate per run and flaky tests
+```
+
+`--compare` prints a summary per solution, the pass rate per module, and every
+test whose outcome differs, with the HTTP status and S3 error code of each
+failure (`FAIL 403 SignatureDoesNotMatch`). It notes when runs used different
+test selections or s3tests builds, or lacked a second user. Formats: `text`,
+`md` (wiki pages), `csv` (one row per solution and test, for spreadsheets or a
+database), `html` (a standalone page with a show-all toggle) and `json`.
+
+`--trend` lists the recent runs of one label and flags flaky tests: tests
+whose outcome changed between runs of the same s3tests build, which points to
+an unstable platform or network rather than a code change.
+
+### What makes runs comparable
+
+- Compare runs of the same **tier** and **build**. Every output shows both, and
+  `--compare` warns when they differ. Pin one s3tests version for a comparison
+  campaign.
+- Configure the same things on every solution: a second user (`[alt]`), https
+  (SSE-C needs it), and the same `exclude_tags`. A missing second user makes
+  the cross-user tests SKIP on that solution only.
+- The pass rate is `pass / (pass + fail + error)`; skips are excluded and
+  reported by category. Expected failures (`[expected_failures]`) count as
+  failures here, so one platform's allow-list cannot inflate its score. They
+  still keep that platform's own exit status at 0.
+- Skips carry a reason category, so "not supported" is not confused with "not
+  set up":
+
+| skip category | meaning | for comparisons |
+|---|---|---|
+| `not-implemented` | the server answered NotImplemented or 501 | a missing feature |
+| `disabled-by-policy` | the platform or account switched it off (Block Public Access, ACLs disabled, SSE-C blocked) | supported but off; check the platform settings |
+| `not-configured` | the run lacked something (second user, https, lifecycle wait) | fix the run configuration, not the platform |
+| `not-run` | the run stopped before the test finished | rerun |
+
+### Scheduled runs
+
+`examples/nightly.sh` runs every config it is given, files the results,
+sweeps leftover buckets, and writes `compare.html`, `compare.csv` and
+`compare.md` into the results directory:
+
+```
+# Mon, Wed, Fri at 02:15
+15 2 * * 1,3,5  /usr/share/doc/s3tests-1.2.1/examples/nightly.sh /etc/s3tests/*.conf >> /var/log/s3tests-nightly.log 2>&1
+```
+
+It exits 5 if any solution regressed, 3 if one could not be reached, 4 if a
+run stopped early, 1 for failures that are not new, 0 otherwise.
+`RESULTS_DIR`, `TIER`, `KEEP_DAYS` (run directories, default 90; history is
+kept) and `JOBS` adjust it.
+
+In Jenkins or GitLab, publish `junit.xml` from the run directory; its
+properties carry the label, run id and build. Secrets can come from the
+environment (`S3TESTS_ENDPOINT`, `S3TESTS_ACCESS_KEY`, `S3TESTS_SECRET_KEY`,
+`S3TESTS_LABEL`).
+
+## Results file format
+
+`results.json` (also written by `--json FILE`) is one JSON document per run
+with a versioned schema. New fields may be added; a change that breaks readers
+changes the version in `schema`. Tests are sorted by id, times are UTC.
+
+```
+{
+  "schema": "s3tests.results/1",
+  "run":     {"id", "label", "started", "finished", "duration_s", "tier", "selection", "jobs",
+              "aborted", "abort_reason", "exit_code", "leftover_buckets",
+              "cleanup": {"buckets_created", "buckets_remaining", "verified", "stale_removed", "stale_failed"}},
+  "tool":    {"name", "version", "build", "python", "os", "host"},
+  "target":  {"label", "endpoint", "region", "addressing", "second_user", "tls"},
+  "test_set":{"catalog_size", "catalog_fingerprint", "selected", "selected_fingerprint"},
+  "summary": {"tests", "pass", "fail", "error", "skip", "pass_rate", "skip_categories",
+              "by_module": {"<module>": {"pass", "fail", "error", "skip", "pass_rate"}}},
+  "network": {"requests", "connections", "connect_retries", "stale_retries", "read_retries",
+              "slowdown_retries"},
+  "tests": [
+    {"id": "object.test_put_get_roundtrip", "module", "tier", "tags",
+     "status": "FAIL",              console status: PASS FAIL ERROR SKIP XFAIL XPASS
+     "outcome": "fail",             for comparisons: pass fail error skip
+     "skip_category", "duration_s",
+     "failure_kind": "403 AccessDenied",   stable key for grouping failures
+     "http_status": 403, "s3_code": "AccessDenied", "request": "GET /<bucket>/key",
+     "message", "expected_failure", "rerun", "hung", "warnings", "http_trace"}
+  ]
+}
+```
+
+Messages and request paths are normalized so the same failure reads the same
+in every run: generated bucket names become `<bucket>`, upload and version
+ids `<id>`, and random test data `<hex>`, `<uuid>` or `<base64>`.
+`failure_kind` is the HTTP status and S3 error code when a response was at
+fault, otherwise the name of the failed check; group or join on it rather
+than on the message.
+
+`selected_fingerprint` identifies the exact set of tests a run selected; two
+runs with the same fingerprint ran the same tests. `history.jsonl` holds one
+compact line per run (counts, pass rate, build, changes since the previous
+run, and each test's outcome as one letter) for trend tools that do not want
+to open every results file.
 
 ## Gateway notes
 
@@ -653,16 +808,16 @@ Keep tests independent so they can run in parallel. Then
 |---|---|---|
 | `make coverage` | `COVERAGE.html` from the test code | python3 |
 | `make check` | byte-compile check and offline self-test | python3 |
-| `make dist` | `dist/s3tests-1.1.0.tar.gz` with the rendered spec inside | tar, gzip, sed |
+| `make dist` | `dist/s3tests-1.2.1.tar.gz` with the rendered spec inside | tar, gzip, sed |
 | `make rpm` | RPM and SRPM for this host's release in `dist/` | rpm-build, make |
 | `make rpm-el7`, `make rpm-el8`, `make rpms` | the RHEL 7 build, the RHEL 8+ build, or both, from any build host | rpm-build, make |
 | `make yum-repo BASEURL=...` | both RPMs as yum repositories plus `.repo` files in `dist/repo` | createrepo_c or createrepo |
-| `make run` | `dist/s3tests-1.1.0.run`, self-extracting installer | tar, gzip, sha256sum or shasum |
+| `make run` | `dist/s3tests-1.2.1.run`, self-extracting installer | tar, gzip, sha256sum or shasum |
 | `make srpm` | SRPM only, for an internal build system | rpm-build |
-| `make macpkg` | `dist/s3tests-1.1.0.pkg` | macOS with Xcode CLT |
+| `make macpkg` | `dist/s3tests-1.2.1.pkg` | macOS with Xcode CLT |
 | `make install PREFIX=...` | direct install | bash |
 
-`rpmbuild -ta dist/s3tests-1.1.0.tar.gz` also works. The spec's `%check` runs
+`rpmbuild -ta dist/s3tests-1.2.1.tar.gz` also works. The spec's `%check` runs
 the self-test, and byte compilation is skipped so one noarch RPM serves RHEL 8,
 9 and 10. The `.el8` or `.el9` dist tag comes from the build host; the payload
 is identical. The version lives in `lib/s3tests/__init__.py`.
@@ -677,6 +832,8 @@ lib/s3tests/
   config.py                    INI, environment and CLI configuration
   context.py                   per-test clients, naming, time limits, bucket removal
   cleanup.py                   --cleanup sweep of leftover test buckets
+  results.py                   results document (schema s3tests.results/1)
+  compare.py                   --compare, --diff, --trend
   safety.py                    run journal, abort control, crash recovery
   runner.py                    discovery, tiers, workers, watchdog, circuit breaker
   report.py                    console, JUnit XML, JSON
