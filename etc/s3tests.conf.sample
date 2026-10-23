@@ -22,7 +22,7 @@ region = us-east-1
 addressing_style = path
 verify_ssl = true
 # PEM file of trusted CAs. /etc/ssl/cert.pem is the macOS system bundle; on RHEL use
-# /etc/pki/tls/certs/ca-bundle.crt (the RPM sets this), or add your corporate root CA.
+# /etc/pki/tls/certs/ca-bundle.crt (the installer sets the right one), or your corporate root CA.
 # If the file does not exist, s3tests warns and uses the system trust store.
 ca_bundle = /etc/ssl/cert.pem
 # read timeout per request; connect_timeout bounds TCP + TLS setup

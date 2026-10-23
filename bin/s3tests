@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# s3tests launcher (s3tests-launcher-v1)
+#
+# Locates the s3tests library and a Python 3.6+ interpreter, then runs the
+# suite. Works with bash 3.2 (macOS) and bash 4/5 (RHEL).
+#
+# Overrides:
+#   S3TESTS_HOME    directory containing the s3tests/ package
+#   S3TESTS_PYTHON  interpreter to use
+
+set -u
+
+resolve_dir() {
+    local p="$1" t
+    while [ -L "$p" ]; do
+        t=$(readlink "$p")
+        case "$t" in
+            /*) p="$t" ;;
+            *) p="$(dirname "$p")/$t" ;;
+        esac
+    done
+    (cd "$(dirname "$p")" && pwd -P)
+}
+
+BIN_DIR=$(resolve_dir "${BASH_SOURCE[0]}")
+
+LIBDIR="${S3TESTS_HOME:-}"
+if [ -z "$LIBDIR" ]; then
+    for d in "@LIBDIR@" "$BIN_DIR/../share/s3tests" "$BIN_DIR/../lib"; do
+        if [ -f "$d/s3tests/__init__.py" ]; then
+            LIBDIR="$d"
+            break
+        fi
+    done
+fi
+if [ -z "$LIBDIR" ] || [ ! -f "$LIBDIR/s3tests/__init__.py" ]; then
+    echo "s3tests: cannot find the s3tests library (set S3TESTS_HOME)" >&2
+    exit 2
+fi
+
+python_ok() {
+    "$1" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 6) else 1)' >/dev/null 2>&1
+}
+
+PY=""
+for cand in "${S3TESTS_PYTHON:-}" python3 /usr/libexec/platform-python /usr/bin/python3 \
+            /usr/local/bin/python3 /opt/homebrew/bin/python3 python3.12 python3.11 python3.9 python3.6; do
+    [ -n "$cand" ] || continue
+    if command -v "$cand" >/dev/null 2>&1 && python_ok "$cand"; then
+        PY=$(command -v "$cand")
+        break
+    fi
+done
+# RHEL 7 before 7.7 has no python3 in the base repo; Software Collections
+# (rh-python36/38) work once their environment is loaded.
+if [ -z "$PY" ]; then
+    for enable in /opt/rh/rh-python38/enable /opt/rh/rh-python36/enable; do
+        if [ -f "$enable" ]; then
+            # shellcheck disable=SC1090
+            . "$enable"
+            if command -v python3 >/dev/null 2>&1 && python_ok python3; then
+                PY=$(command -v python3)
+                break
+            fi
+        fi
+    done
+fi
+if [ -z "$PY" ]; then
+    echo "s3tests: Python 3.6 or newer is required." >&2
+    echo "  RHEL 7.7+: yum install python3   RHEL 8: platform-python is built in   or set S3TESTS_PYTHON" >&2
+    exit 2
+fi
+
+# -E ignore PYTHON* env vars, -s ignore user site-packages, -B write no .pyc:
+# the run uses only the standard library and this package. The current
+# directory is dropped from sys.path so stray .py files there cannot shadow modules.
+exec "$PY" -E -s -B -c 'import sys; sys.path[:] = [sys.argv.pop(1)] + [p for p in sys.path if p not in ("", ".")]; from s3tests.cli import main; sys.exit(main())' \
+    "$LIBDIR" "$@"
