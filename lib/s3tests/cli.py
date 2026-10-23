@@ -339,6 +339,18 @@ def main(argv=None):
         print('network: %d requests over %d connections; retries: %d connect, %d stale keep-alive, '
               '%d dropped reads, %d SlowDown' % (ns['requests'], ns['connections'], ns['connect_retries'],
                                                  ns['stale_retries'], ns['read_retries'], ns['slowdown_retries']))
+    bv = results_mod.bucket_visibility()
+    if bv['checked']:
+        if bv['delayed']:
+            line = ('bucket visibility: %d of %d new bucket(s) returned 404 after CreateBucket succeeded; '
+                    'longest %.1fs, mean %.1fs' % (bv['delayed'], bv['checked'], bv['max_wait_seconds'],
+                                                   bv['mean_wait_seconds']))
+            if bv['never_ready']:
+                line += '; %d not readable within bucket_ready_timeout (%ds)' % (bv['never_ready'],
+                                                                                  cfg.bucket_ready_timeout)
+            print(line)
+        else:
+            print('bucket visibility: all %d new bucket(s) readable immediately after CreateBucket' % bv['checked'])
     hung = [r for r in results if getattr(r, 'hung', False)]
     if hung:
         print('\n%d test(s) hung and were abandoned: %s' % (len(hung), ', '.join(r.test.id for r in hung)))

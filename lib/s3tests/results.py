@@ -194,7 +194,21 @@ def build(results, cfg, run, all_tests, selected, net_stats=None, leftovers=None
         },
         'summary': summary,
         'network': dict(net_stats or {}),
+        'bucket_visibility': bucket_visibility(),
         'tests': records,
+    }
+
+
+def bucket_visibility():
+    """How long new buckets returned 404 after CreateBucket (context._wait_ready)."""
+    from .context import BUCKET_READY
+    b = dict(BUCKET_READY)
+    return {
+        'checked': b['checked'],
+        'delayed': b['delayed'],
+        'never_ready': b['never_ready'],
+        'max_wait_seconds': round(b['max_wait'], 2),
+        'mean_wait_seconds': round(b['total_wait'] / b['delayed'], 2) if b['delayed'] else 0.0,
     }
 
 

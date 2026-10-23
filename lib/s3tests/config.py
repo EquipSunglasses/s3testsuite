@@ -103,6 +103,8 @@ class Config(object):
         self.tier = 'full'
         self.hang_grace = 60
         self.propagation_timeout = 20
+        self.bucket_ready_timeout = 30
+        self.bucket_ready_checks = 3
         self.final_cleanup_window = 180
         self.sweep_stale_buckets = True
         self.stale_bucket_minutes = 60
@@ -257,6 +259,8 @@ def load(path=None, overrides=None):
         cfg.tier = get('run', 'tier', cfg.tier).lower()
         cfg.hang_grace = int(get('run', 'hang_grace', cfg.hang_grace))
         cfg.propagation_timeout = int(get('run', 'propagation_timeout', cfg.propagation_timeout))
+        cfg.bucket_ready_timeout = int(get('run', 'bucket_ready_timeout', cfg.bucket_ready_timeout))
+        cfg.bucket_ready_checks = max(1, int(get('run', 'bucket_ready_checks', cfg.bucket_ready_checks)))
         cfg.final_cleanup_window = int(get('run', 'final_cleanup_window', cfg.final_cleanup_window))
         cfg.sweep_stale_buckets = _bool(get('run', 'sweep_stale_buckets', 'true'))
         cfg.stale_bucket_minutes = int(get('run', 'stale_bucket_minutes', cfg.stale_bucket_minutes))

@@ -128,8 +128,22 @@ def _summary_rows(docs, names):
         s = d['summary']
         rows.append([name, d['run']['started'][:16].replace('T', ' '), '%s/%s' % (d['tool']['version'], d['tool']['build']),
                      d['run']['tier'], str(s['tests']), str(s['pass']), str(s['fail']), str(s['error']), str(s['skip']),
-                     '%s%%' % s['pass_rate'] if s['pass_rate'] is not None else 'n/a'])
+                     '%s%%' % s['pass_rate'] if s['pass_rate'] is not None else 'n/a',
+                     _visibility(d)])
     return rows
+
+
+def _visibility(d):
+    """'3/180 up to 2.7s': new buckets that returned 404 after CreateBucket, and the longest wait."""
+    v = d.get('bucket_visibility')
+    if not v or not v.get('checked'):
+        return 'n/a'
+    if not v['delayed']:
+        return 'immediate'
+    out = '%d/%d up to %.1fs' % (v['delayed'], v['checked'], v['max_wait_seconds'])
+    if v['never_ready']:
+        out += ', %d never' % v['never_ready']
+    return out
 
 
 def _module_rows(docs, names):
@@ -157,7 +171,7 @@ def _table(headers, rows):
 
 
 SUMMARY_HEADERS = ['solution', 'started (UTC)', 'version/build', 'tier', 'tests', 'pass', 'fail', 'error', 'skip',
-                   'pass rate']
+                   'pass rate', 'new bucket 404s']
 
 
 def compare_text(docs, show_all=False):
@@ -279,6 +293,7 @@ def compare(docs, fmt='text', show_all=False):
         ids, rows = matrix(docs, show_all)
         return json.dumps({'solutions': names, 'notes': comparability(docs),
                            'summary': dict((n, d['summary']) for n, d in zip(names, docs)),
+                           'bucket_visibility': dict((n, d.get('bucket_visibility')) for n, d in zip(names, docs)),
                            'tests': [dict(id=tid, results=dict(zip(names, cells))) for tid, cells, _ in rows]},
                           indent=1, sort_keys=True) + '\n'
     return compare_text(docs, show_all)

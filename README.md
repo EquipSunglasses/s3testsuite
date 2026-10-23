@@ -29,11 +29,11 @@ packages is hard.
 
 ## Quick start
 
-The installer is `release/s3tests-1.3.0.run` in this repository; copy it to
+The installer is `release/s3tests-1.4.0.run` in this repository; copy it to
 the host and run it with `sh`.
 
 ```
-sh s3tests-1.3.0.run --user          # installs to ~/.local, creates ~/.s3tests.conf
+sh s3tests-1.4.0.run --user          # installs to ~/.local, creates ~/.s3tests.conf
 vi ~/.s3tests.conf                   # fill in endpoint, access_key, secret_key
 s3tests --check                      # TLS, DNS and credentials
 s3tests --smoke                      # 21 core tests, about a minute
@@ -42,12 +42,12 @@ s3tests -j 8                         # all 190 tests
 
 ## Install
 
-Copy `s3tests-1.3.0.run` to the host and run it with `sh`:
+Copy `s3tests-1.4.0.run` to the host and run it with `sh`:
 
 ```
-sh s3tests-1.3.0.run --user                 # just for you, no root needed
-sudo sh s3tests-1.3.0.run                   # for everyone on the host
-sudo sh s3tests-1.3.0.run --prefix /opt/s3tests
+sh s3tests-1.4.0.run --user                 # just for you, no root needed
+sudo sh s3tests-1.4.0.run                   # for everyone on the host
+sudo sh s3tests-1.4.0.run --prefix /opt/s3tests
 ```
 
 | install | command | config created |
@@ -74,8 +74,8 @@ run instead of this one.
 Two more options:
 
 ```
-sh s3tests-1.3.0.run --verify               # check the file's SHA-256, install nothing
-sh s3tests-1.3.0.run --extract /tmp/x       # unpack only, to inspect it first
+sh s3tests-1.4.0.run --verify               # check the file's SHA-256, install nothing
+sh s3tests-1.4.0.run --extract /tmp/x       # unpack only, to inspect it first
 ```
 
 The `.run` file is a short shell script followed by the install files. Their
@@ -205,6 +205,7 @@ the settings in effect; `s3tests --check` tests the endpoint, TLS and both users
 | run | `final_cleanup_window` | `180` | seconds the end of a run keeps retrying buckets it could not remove |
 | run | `sweep_stale_buckets`, `stale_bucket_minutes` | `true`, `60` | remove test buckets left by earlier runs once they are this old |
 | run | `propagation_timeout` | `20` | seconds to wait for ACL and policy changes to take effect |
+| run | `bucket_ready_timeout`, `bucket_ready_checks` | `30`, `3` | after CreateBucket, wait up to this many seconds until HEAD succeeds this many times in a row (0 disables); see [Platform notes](#platform-notes) |
 | run | `max_runtime` | `0` | minutes before the run stops with cleanup (0 = no limit) |
 | run | `state_dir`, `auto_recover` | `~/.local/state/s3tests`, `true` | crash-recovery journals |
 | run | `lifecycle_wait_seconds` | `0` | enables the real lifecycle expiration test |
@@ -268,6 +269,7 @@ Pass rate: 97.7% (172 of 176 attempted; expected failures count as failures)
 Skipped: 9 not-configured, 5 disabled-by-policy
 Cleanup: 248 test bucket(s) created, 248 removed, 0 remain (verified against the endpoint)
 network: 2112 requests over 203 connections; retries: 2 connect, 0 stale keep-alive, 0 dropped reads, 0 SlowDown
+bucket visibility: all 248 new bucket(s) readable immediately after CreateBucket
 ```
 
 Each failure shows the expected and actual result and the request:
@@ -428,6 +430,7 @@ Tests are sorted by id and times are UTC.
   "test_set":{"catalog_size", "catalog_fingerprint", "selected", "selected_fingerprint"},
   "summary": {"tests", "pass", "fail", "error", "skip", "pass_rate", "skip_categories", "by_module"},
   "network": {"requests", "connections", "connect_retries", "stale_retries", "read_retries", "slowdown_retries"},
+  "bucket_visibility": {"checked", "delayed", "never_ready", "max_wait_seconds", "mean_wait_seconds"},
   "tests": [
     {"id": "object.test_put_get_roundtrip", "module", "tier", "tags",
      "status": "FAIL",                     PASS FAIL ERROR SKIP XFAIL XPASS
@@ -502,6 +505,37 @@ description, tier and tags, with search and filters.
   lifecycle interval and set `lifecycle_wait_seconds` (for example 180).
 - Where users live in tenants or accounts, set `[alt] principal_arn`, for
   example `arn:aws:iam::TENANT:user/UID`.
+
+**New buckets that return 404 NoSuchBucket**
+
+Some clustered platforms acknowledge CreateBucket before every node knows the
+bucket. A request that reaches another node in the next moment (often through
+a load balancer) gets 404 NoSuchBucket, so a test fails in setup although
+nothing is wrong with the operation it tests. To keep these failures out of
+the results, after each successful CreateBucket s3tests sends HEAD until it
+succeeds `bucket_ready_checks` times in a row (default 3), for up to
+`bucket_ready_timeout` seconds (default 30). Each check uses a new connection,
+so a load balancer can route it to a different node. Only 404 counts as not
+ready; any other answer ends the wait.
+
+The delay is measured, not hidden. Each affected test carries a warning such
+as `bucket <bucket> returned 404 on HEAD for 2.7s after CreateBucket succeeded`.
+The run summary prints a `bucket visibility:` line, the results file has a
+`bucket_visibility` section, and `--compare` shows a `new bucket 404s` column,
+so solutions can be compared on how soon a new bucket is usable.
+
+If 404s continue after the wait:
+
+- Raise `bucket_ready_checks` (to 5 or more) when the load balancer has many
+  backend nodes, so more nodes are checked before a test starts.
+- Raise `bucket_ready_timeout` when `bucket visibility:` reports buckets that
+  were never readable.
+- Check the platform's consistency setting for bucket metadata and whether the
+  load balancer keeps a client on one node. A 404 on a later request after the
+  wait passed means the nodes still disagree; that is a finding to raise with
+  the vendor, not something the suite should retry around.
+- Set `bucket_ready_timeout = 0` to measure the raw behavior: setup failures
+  then show how often a new bucket is not yet usable.
 - Run against each node behind the load balancer as well as the VIP to catch
   per-node configuration drift.
 
@@ -539,6 +573,7 @@ For the cross-user tests, add a second IAM user in `[alt]` with
 | `DeadlineExceeded` | the test ran past `test_timeout`; raise it for slow links or large objects |
 | a test "hung ... abandoned" | a request never completed; check the gateway or load balancer logs |
 | `Operation timed out` (Errno 60/110) | TCP connections to the endpoint are timing out (network, firewall connection limits, or the endpoint) |
+| `404 NoSuchBucket` right after a bucket was created | the platform makes new buckets visible asynchronously; see [Platform notes](#platform-notes) and raise `bucket_ready_checks` or `bucket_ready_timeout` |
 | "took Ns to take effect" | the platform applies ACL and policy changes asynchronously; raise `propagation_timeout` if tests fail |
 | `Cleanup:` line shows buckets remaining | they are retried on the next run, or run `s3tests --recover` |
 
@@ -571,9 +606,9 @@ the committed `.run` on Rocky Linux 8 and 9, AlmaLinux 10 and macOS and runs
 the self-test. To inspect the payload by hand:
 
 ```
-sh release/s3tests-1.3.0.run --extract /tmp/s3t       # unpacks only
-tail -n +$(awk '/^__S3TESTS_PAYLOAD__$/{print NR+1; exit}' release/s3tests-1.3.0.run) \
-    release/s3tests-1.3.0.run | tar tzf -              # lists files without running anything
+sh release/s3tests-1.4.0.run --extract /tmp/s3t       # unpacks only
+tail -n +$(awk '/^__S3TESTS_PAYLOAD__$/{print NR+1; exit}' release/s3tests-1.4.0.run) \
+    release/s3tests-1.4.0.run | tar tzf -              # lists files without running anything
 ```
 
 **Build** the installer from the source tree:

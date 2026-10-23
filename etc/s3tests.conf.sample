@@ -85,6 +85,14 @@ stale_bucket_minutes = 60
 # Seconds to wait for ACL / policy / public access changes to take effect (AWS
 # needs a few seconds; 0 makes the checks strict).
 propagation_timeout = 20
+# After each successful CreateBucket, wait up to this many seconds for the
+# bucket to answer HEAD (clustered platforms can return 404 NoSuchBucket for a
+# moment while the new bucket reaches every node). The check must pass
+# bucket_ready_checks times in a row, each on a new connection so a load
+# balancer can send it to a different node. Delays are reported as warnings
+# and in the run summary. 0 disables the wait.
+bucket_ready_timeout = 30
+bucket_ready_checks = 3
 # Abort the whole run (with cleanup) after this many minutes (0 = no limit).
 max_runtime = 0
 # Every bucket a run creates is journaled here so buckets left by a crash or

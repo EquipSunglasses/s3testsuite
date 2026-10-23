@@ -6,7 +6,7 @@ RHEL 7 python3, RHEL 8 platform-python, RHEL 9/10 python3 and macOS python3.
 
 import os
 
-__version__ = '1.3.0'
+__version__ = '1.4.0'
 
 try:  # written into release tarballs by `make dist`
     from ._build import BUILD as __build__

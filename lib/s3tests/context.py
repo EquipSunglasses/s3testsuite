@@ -14,6 +14,10 @@ _id_cache = {}
 _id_lock = threading.Lock()
 BYPASS = {'x-amz-bypass-governance-retention': 'true'}
 
+# How long new buckets took to become readable, across the whole run (see _wait_ready).
+BUCKET_READY = {'checked': 0, 'delayed': 0, 'never_ready': 0, 'max_wait': 0.0, 'total_wait': 0.0}
+_ready_lock = threading.Lock()
+
 
 class TestContext(object):
     def __init__(self, cfg, test_id='', state=None):
@@ -138,6 +142,56 @@ class TestContext(object):
         ours = resp.ok or resp.error_code == 'BucketAlreadyOwnedByYou'
         if newly_added and not ours and resp.status < 500:
             self._unregister(name)
+        if resp.ok and self.cfg.bucket_ready_timeout > 0:
+            self._wait_ready(name, client)
+
+    def _wait_ready(self, name, client):
+        """After a successful CreateBucket, wait until the bucket is readable.
+
+        Some clustered platforms acknowledge CreateBucket before every node
+        knows the bucket, so the next request (often on another node behind a
+        load balancer) gets 404 NoSuchBucket. This sends HEAD until it succeeds
+        bucket_ready_checks times in a row, each on a new connection so a load
+        balancer can route it to a different node. Only 404 counts as not ready;
+        any other answer ends the wait and the test proceeds. A delay is reported
+        as a warning and counted in the run summary, never silently absorbed.
+        """
+        timeout = self.cfg.bucket_ready_timeout
+        need = self.cfg.bucket_ready_checks
+        t0 = time.time()
+        streak = misses = 0
+        delay = 0.2
+        ready = True
+        while streak < need:
+            client.close()
+            r = client.head_bucket(name)
+            if r.ok:
+                streak += 1
+                continue
+            if r.status != 404:
+                break
+            streak = 0
+            misses += 1
+            if time.time() - t0 >= timeout:
+                ready = False
+                break
+            client._sleep(delay)
+            delay = min(delay * 1.5, 2.0)
+        waited = time.time() - t0
+        with _ready_lock:
+            BUCKET_READY['checked'] += 1
+            if misses:
+                BUCKET_READY['delayed'] += 1
+                BUCKET_READY['total_wait'] += waited
+                BUCKET_READY['max_wait'] = max(BUCKET_READY['max_wait'], waited)
+            if not ready:
+                BUCKET_READY['never_ready'] += 1
+        if not ready:
+            self.warnings.append('bucket %s still returned 404 on HEAD %.0fs after CreateBucket succeeded'
+                                 % (name, waited))
+        elif misses:
+            self.warnings.append('bucket %s returned 404 on HEAD for %.1fs after CreateBucket succeeded '
+                                 '(%d of %d checks)' % (name, waited, misses, misses + streak))
 
     def bucket_list(self):
         return list(self._buckets)

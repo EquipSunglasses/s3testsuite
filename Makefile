@@ -44,9 +44,10 @@ $(PAYLOAD): $(SOURCES)
 	(cd $(DIST)/stage && tar cf - $(NAME)-$(VERSION)) | gzip -9 > $@
 	rm -rf $(DIST)/stage
 
-# Copy the built installer to release/, the copy kept in git.
+# Copy the built installer to release/, the copy kept in git (older versions stay in git history).
 release: $(RUN)
 	mkdir -p release
+	rm -f release/$(NAME)-*.run
 	cp $(RUN) release/
 	cd release && { command -v sha256sum >/dev/null && sha256sum $(NAME)-*.run || shasum -a 256 $(NAME)-*.run; } > SHA256SUMS
 	packaging/tools/verify-run.sh release/$(NAME)-$(VERSION).run
