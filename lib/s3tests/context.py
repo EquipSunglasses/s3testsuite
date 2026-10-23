@@ -224,7 +224,7 @@ class TestContext(object):
             raise AssertionError('setup: create bucket %s failed: HTTP %d %s %s' % (
                 name, r.status, r.error_code or '', r.error_message or ''))
         self.register_bucket(name, client)
-        client.delete_bucket_sub(name, 'publicAccessBlock')
+        remove_public_access_block(client, name)
         return name
 
     # teardown ------------------------------------------------------------
@@ -274,6 +274,20 @@ class TestContext(object):
             items.extend(c.history)
         items.sort(key=lambda r: getattr(r, 'started', 0))
         return [r.trace(full) for r in items]
+
+
+def remove_public_access_block(client, bucket):
+    """Remove a bucket's public access block, only where the platform has one.
+
+    Some platforms do not know the ?publicAccessBlock subresource, ignore it,
+    and run the plain bucket operation instead: GET lists the objects, and
+    DELETE deletes the (empty) bucket itself. So DELETE is sent only when GET
+    returns an actual PublicAccessBlockConfiguration.
+    """
+    r = client.get_bucket_sub(bucket, 'publicAccessBlock')
+    if r.ok and r.body and b'PublicAccessBlockConfiguration' in r.body[:1024]:
+        return client.delete_bucket_sub(bucket, 'publicAccessBlock')
+    return None
 
 
 # --- bucket removal --------------------------------------------------------

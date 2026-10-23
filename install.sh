@@ -114,13 +114,33 @@ if [ -n "$FIRST" ] && [ "$FIRST" != "$BINDIR/s3tests" ]; then
     echo "  WARNING: 's3tests' on your PATH is $FIRST, not $BINDIR/s3tests."
     echo "           Running 's3tests' starts that other copy. Remove it, or run $BINDIR/s3tests."
 fi
-for other in /usr/bin/s3tests /usr/local/bin/s3tests "$HOME/.local/bin/s3tests" /opt/s3tests/bin/s3tests; do
+# Under sudo, $HOME is root's; also look in the invoking user's home, where a
+# --user install would sit ahead of /usr/local/bin on that user's PATH.
+USER_HOME="$HOME"
+if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != root ]; then
+    USER_HOME=$(eval echo "~$SUDO_USER")
+fi
+others=""
+for other in /usr/bin/s3tests /usr/local/bin/s3tests "$HOME/.local/bin/s3tests" "$USER_HOME/.local/bin/s3tests" \
+             "$USER_HOME/bin/s3tests" /opt/s3tests/bin/s3tests; do
+    case " $others " in *" $other "*) continue ;; esac
     if [ "$other" != "$BINDIR/s3tests" ] && [ -x "$other" ]; then
-        echo "  note: another s3tests install exists at $other ($("$other" --version 2>/dev/null | head -1 || echo 'unknown version'))"
+        others="$others $other"
+        echo "  WARNING: another s3tests install exists at $other ($("$other" --version 2>/dev/null | head -1 || echo 'unknown version'))"
+        case "$other" in
+            "$USER_HOME"/*) echo "           RHEL puts ~/.local/bin first on PATH, so it runs instead of this one; remove it with:"
+                            echo "           rm -rf $(dirname "$(dirname "$other")")/share/s3tests $other" ;;
+        esac
     fi
 done
-case ":$PATH:" in
-    *":$BINDIR:"*) ;;
-    *) echo "  note: $BINDIR is not on PATH; add it, e.g. echo 'export PATH=\"$BINDIR:\$PATH\"' >> ~/.bashrc" ;;
-esac
+[ -n "$others" ] && echo "  after removing it, check with: type -a s3tests"
+# sudo replaces PATH with secure_path (no /usr/local/bin on RHEL), so this check
+# only means something for the user's own shell.
+if [ -z "${SUDO_USER:-}" ]; then
+    case ":$PATH:" in
+        *":$BINDIR:"*) ;;
+        *) echo "  note: $BINDIR is not on PATH; add it, e.g. echo 'export PATH=\"$BINDIR:\$PATH\"' >> ~/.bashrc" ;;
+    esac
+fi
+echo "  if 's3tests' still starts an older version in an open shell, run: hash -r"
 exit 0

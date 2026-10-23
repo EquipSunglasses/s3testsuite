@@ -51,7 +51,8 @@ def unreadable_message(path):
             'It holds credentials, so a root install makes it readable by root only. Either:\n'
             '  sudo s3tests ...                                   run as root\n'
             '  sudo install -m 600 -o $USER %s ~/.s3tests.conf   your own copy (used first)\n'
-            '  sh s3tests-VERSION.run --user                      a separate install for your user'
+            '  sh s3tests-VERSION.run --user                      a separate install for your user\n'
+            '  s3tests -c FILE ...                                use another config file you can read'
             % (path, owner, mode, path))
 
 

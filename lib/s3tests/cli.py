@@ -166,7 +166,14 @@ def _check(cfg):
 
 
 def main(argv=None):
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    # parse_known_args lets test patterns sit before and after options
+    # (s3tests my.conf --smoke object.test_x); Python 3.6 has no parse_intermixed_args.
+    args, extra = parser.parse_known_args(argv)
+    unknown = [a for a in extra if a.startswith('-')]
+    if unknown:
+        parser.error('unrecognized arguments: %s' % ' '.join(unknown))
+    args.patterns = list(args.patterns) + extra
     if args.compare or args.diff or args.trend:
         return _analysis(args)
     if args.version:
@@ -177,6 +184,17 @@ def main(argv=None):
         return 0
     if args.selftest:
         return selftest.run()
+
+    # A file given where a test pattern goes is almost always a config missing its -c.
+    files = [a for a in args.patterns if os.path.isfile(a)]
+    if files:
+        if args.config or len(files) > 1:
+            print('s3tests: %s %s a file, not a test name; give one config with -c FILE'
+                  % (', '.join(files), 'is' if len(files) == 1 else 'are'), file=sys.stderr)
+            return 2
+        args.config = files[0]
+        args.patterns = [a for a in args.patterns if a != files[0]]
+        print('note: using %s as the config file (same as -c %s)' % (args.config, args.config), file=sys.stderr)
 
     overrides = {'endpoint': args.endpoint, 'region': args.region, 'addressing': args.addressing,
                  'ca_bundle': args.ca_bundle, 'jobs': args.jobs, 'tier': args.tier,

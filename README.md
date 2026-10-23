@@ -29,11 +29,11 @@ packages is hard.
 
 ## Quick start
 
-The installer is `release/s3tests-1.4.0.run` in this repository; copy it to
+The installer is `release/s3tests-1.4.4.run` in this repository; copy it to
 the host and run it with `sh`.
 
 ```
-sh s3tests-1.4.0.run --user          # installs to ~/.local, creates ~/.s3tests.conf
+sh s3tests-1.4.4.run --user          # installs to ~/.local, creates ~/.s3tests.conf
 vi ~/.s3tests.conf                   # fill in endpoint, access_key, secret_key
 s3tests --check                      # TLS, DNS and credentials
 s3tests --smoke                      # 21 core tests, about a minute
@@ -42,12 +42,12 @@ s3tests -j 8                         # all 190 tests
 
 ## Install
 
-Copy `s3tests-1.4.0.run` to the host and run it with `sh`:
+Copy `s3tests-1.4.4.run` to the host and run it with `sh`:
 
 ```
-sh s3tests-1.4.0.run --user                 # just for you, no root needed
-sudo sh s3tests-1.4.0.run                   # for everyone on the host
-sudo sh s3tests-1.4.0.run --prefix /opt/s3tests
+sh s3tests-1.4.4.run --user                 # just for you, no root needed
+sudo sh s3tests-1.4.4.run                   # for everyone on the host
+sudo sh s3tests-1.4.4.run --prefix /opt/s3tests
 ```
 
 | install | command | config created |
@@ -74,8 +74,8 @@ run instead of this one.
 Two more options:
 
 ```
-sh s3tests-1.4.0.run --verify               # check the file's SHA-256, install nothing
-sh s3tests-1.4.0.run --extract /tmp/x       # unpack only, to inspect it first
+sh s3tests-1.4.4.run --verify               # check the file's SHA-256, install nothing
+sh s3tests-1.4.4.run --extract /tmp/x       # unpack only, to inspect it first
 ```
 
 The `.run` file is a short shell script followed by the install files. Their
@@ -145,6 +145,10 @@ s3tests -c /etc/s3tests/vendor-a.conf --smoke
 sudo s3tests -c /usr/local/etc/s3tests/s3tests.conf --check    # root-only file
 s3tests -c /etc/s3tests/vendor-a.conf --show-config             # confirm what it supplies
 ```
+
+A path to an existing file given without `-c` (`s3tests vendor-a.conf --smoke`)
+is used the same way, with a note saying so; without this, it would be taken as
+a test name.
 
 With `-c`, s3tests reads only that file and skips the search below, so a
 leftover `~/.s3tests.conf` or `./s3tests.conf` has no effect. A wrong path
@@ -506,6 +510,17 @@ description, tier and tags, with search and filters.
 - Where users live in tenants or accounts, set `[alt] principal_arn`, for
   example `arn:aws:iam::TENANT:user/UID`.
 
+**Subresources the platform does not know**
+
+S3 operations such as `DELETE /bucket?publicAccessBlock` name a subresource
+after the `?`. Some platforms ignore a subresource they do not support and run
+the plain bucket operation instead, so that request deletes an empty bucket
+(seen on Dell ObjectScale; the response is 204). The ACL tests' setup removes
+the public access block only after `GET ?publicAccessBlock` returns an actual
+configuration, so it never sends that DELETE to such a platform.
+`bucket.test_delete_public_access_block_keeps_bucket` checks for the behavior
+directly and fails with `deleted the bucket itself` where it occurs.
+
 **New buckets that return 404 NoSuchBucket**
 
 Some clustered platforms acknowledge CreateBucket before every node knows the
@@ -573,6 +588,7 @@ For the cross-user tests, add a second IAM user in `[alt]` with
 | `DeadlineExceeded` | the test ran past `test_timeout`; raise it for slow links or large objects |
 | a test "hung ... abandoned" | a request never completed; check the gateway or load balancer logs |
 | `Operation timed out` (Errno 60/110) | TCP connections to the endpoint are timing out (network, firewall connection limits, or the endpoint) |
+| `404 NoSuchBucket` in the ACL tests, with `DELETE ...?publicAccessBlock -> 204` just before it in `-vv` output | the platform deleted the bucket on that request; fixed in 1.4.4 (see [Platform notes](#platform-notes)) |
 | `404 NoSuchBucket` right after a bucket was created | the platform makes new buckets visible asynchronously; see [Platform notes](#platform-notes) and raise `bucket_ready_checks` or `bucket_ready_timeout` |
 | "took Ns to take effect" | the platform applies ACL and policy changes asynchronously; raise `propagation_timeout` if tests fail |
 | `Cleanup:` line shows buckets remaining | they are retried on the next run, or run `s3tests --recover` |
@@ -606,9 +622,9 @@ the committed `.run` on Rocky Linux 8 and 9, AlmaLinux 10 and macOS and runs
 the self-test. To inspect the payload by hand:
 
 ```
-sh release/s3tests-1.4.0.run --extract /tmp/s3t       # unpacks only
-tail -n +$(awk '/^__S3TESTS_PAYLOAD__$/{print NR+1; exit}' release/s3tests-1.4.0.run) \
-    release/s3tests-1.4.0.run | tar tzf -              # lists files without running anything
+sh release/s3tests-1.4.4.run --extract /tmp/s3t       # unpacks only
+tail -n +$(awk '/^__S3TESTS_PAYLOAD__$/{print NR+1; exit}' release/s3tests-1.4.4.run) \
+    release/s3tests-1.4.4.run | tar tzf -              # lists files without running anything
 ```
 
 **Build** the installer from the source tree:

@@ -24,6 +24,18 @@ def test_head_missing_bucket(ctx):
     error(ctx.c.head_bucket(ctx.bucket_name()), 404)
 
 
+@tags('publicaccess')
+def test_delete_public_access_block_keeps_bucket(ctx):
+    """DELETE ?publicAccessBlock removes only that setting; the bucket itself remains."""
+    b = ctx.new_bucket()
+    r = ctx.c.delete_bucket_sub(b, 'publicAccessBlock')
+    h = ctx.c.head_bucket(b)
+    if h.status == 404:
+        raise AssertionError('DELETE ?publicAccessBlock (HTTP %d) deleted the bucket itself: the server ignored '
+                             'the subresource and ran DeleteBucket' % r.status)
+    ok(h, 'HEAD bucket after DELETE ?publicAccessBlock')
+
+
 def test_delete_missing_bucket(ctx):
     """DELETE on a missing bucket returns 404 NoSuchBucket."""
     error(ctx.c.delete_bucket(ctx.bucket_name()), 404, 'NoSuchBucket')
