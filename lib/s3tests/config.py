@@ -104,7 +104,7 @@ class Config(object):
         self.tier = 'full'
         self.hang_grace = 60
         self.propagation_timeout = 20
-        self.bucket_ready_timeout = 30
+        self.bucket_ready_timeout = 5
         self.bucket_ready_checks = 3
         self.final_cleanup_window = 180
         self.sweep_stale_buckets = True
@@ -152,8 +152,8 @@ class Config(object):
                               '\nset [main] access_key and secret_key, or S3TESTS_ACCESS_KEY/S3TESTS_SECRET_KEY')
         if self.addressing not in ('path', 'virtual'):
             raise ConfigError('addressing_style must be path or virtual')
-        if self.tier not in ('smoke', 'standard', 'full'):
-            raise ConfigError('tier must be smoke, standard or full')
+        if self.tier not in ('smoke', 'core', 'standard', 'full'):
+            raise ConfigError('tier must be smoke, core, standard or full')
         if len(self.bucket_prefix) < 3 or not self.bucket_prefix[0].isalnum():
             raise ConfigError('bucket_prefix must be at least 3 characters and start with a letter or digit; '
                               'it is what --cleanup uses to find test buckets')

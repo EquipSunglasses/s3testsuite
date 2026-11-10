@@ -52,6 +52,9 @@ class Console(object):
         if r.status in BAD or (r.status == SKIP and self.verbose) or r.status in (XFAIL, XPASS):
             for line in (r.message or '').splitlines()[:6]:
                 w('              %s\n' % line)
+            if r.status in BAD and getattr(r, 'request_id', None):
+                w('              request id %s%s\n' % (r.request_id, ('  x-amz-id-2 %s' % r.amz_id_2)
+                                                         if getattr(r, 'amz_id_2', None) else ''))
         if r.status in BAD and self.verbose:
             for line in r.detail.rstrip().splitlines()[-12:]:
                 w('              | %s\n' % line)
@@ -79,10 +82,12 @@ class Console(object):
         parts = ', '.join(self._c(st, '%d %s' % (counts[st], st.lower())) for st in STATUSES if counts[st])
         w('\nResults: %s (%d tests in %.1fs)\n' % (parts or 'no tests run', len(results), elapsed))
         passed = counts[PASS] + counts[XPASS]
-        attempted = passed + counts[FAIL] + counts[XFAIL] + counts[ERROR]
+        unimplemented = sum(1 for r in results if r.status == SKIP
+                            and getattr(r, 'skip_category', None) == 'not-implemented')
+        attempted = passed + counts[FAIL] + counts[XFAIL] + counts[ERROR] + unimplemented
         if attempted:
-            w('Pass rate: %.1f%% (%d of %d attempted; expected failures count as failures)\n'
-              % (100.0 * passed / attempted, passed, attempted))
+            w('Pass rate: %.1f%% (%d of %d attempted; expected failures and features the server does not '
+              'implement count as failures)\n' % (100.0 * passed / attempted, passed, attempted))
         cats = {}
         for r in results:
             if r.status == SKIP:
@@ -98,6 +103,8 @@ class Console(object):
             for r in failed:
                 first = (r.message or '').splitlines()[0] if r.message else ''
                 w('  %-5s %s: %s\n' % (r.status, r.test.id, first[:160]))
+                if getattr(r, 'request_id', None):
+                    w('        request id %s\n' % r.request_id)
             if not self.verbose:
                 w('\nrerun with -v for tracebacks and HTTP history, e.g. s3tests -v %s\n' % failed[0].test.id)
         self.stream.flush()

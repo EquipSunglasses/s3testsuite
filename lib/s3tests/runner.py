@@ -21,10 +21,13 @@ BAD = (FAIL, ERROR)
 # tiers contain the smaller ones.
 #   smoke     core data path: buckets, put/get/head/delete, listing, multipart,
 #             copy, batch delete, presigned URLs (tests tagged 'smoke')
+#   core      smoke plus the next everyday operations and their common errors:
+#             prefixes, v1 paging, headers and Content-MD5, cross-bucket copy,
+#             listing uploads and parts, delete markers, tags (tagged 'core')
 #   standard  everything an S3 application commonly relies on, without slow,
 #             large, limit-probing or newer optional features
 #   full      every test
-TIERS = ('smoke', 'standard', 'full')
+TIERS = ('smoke', 'core', 'standard', 'full')
 STANDARD_MODULES = frozenset(['bucket', 'object', 'listing', 'multipart', 'copy', 'multidelete',
                               'versioning', 'tagging', 'lifecycle', 'auth'])
 STANDARD_EXCLUDE_TAGS = frozenset(['slow', 'large', 'limits', 'checksum', 'conditional_write',
@@ -50,6 +53,8 @@ class TestCase(object):
         self.doc = doc[0].strip() if doc else ''
         if 'smoke' in self.tags:
             self.tier = 'smoke'
+        elif 'core' in self.tags:
+            self.tier = 'core'
         elif self.module in STANDARD_MODULES and not (self.tags & STANDARD_EXCLUDE_TAGS):
             self.tier = 'standard'
         else:
@@ -67,6 +72,8 @@ class Result(object):
         self.http_status = None      # status of the response a FAIL was about
         self.s3_code = None          # S3 error code of that response
         self.request = None          # METHOD /path of that response
+        self.request_id = None       # x-amz-request-id of that response (or the test's last response)
+        self.amz_id_2 = None         # x-amz-id-2 of the same response
         self.expected_failure = None # reason from [expected_failures], when listed
         self.rerun = False           # re-run after a connection error
         self.status = status
@@ -142,6 +149,11 @@ def run_test(cfg, test, full_trace=False, state=None, on_ctx=None):
         status, message, detail = ERROR, '%s: %s' % (type(e).__name__, e), traceback.format_exc()
         conn_error = is_connection_error(e)
     trace = ctx.http_history(full=full_trace) if status in BAD else []
+    blamed = getattr(failed_resp, 'resp', None) if failed_resp is not None else None
+    if status in BAD and blamed is None:
+        blamed = ctx.last_response()
+    if status in BAD and failed_resp is not None and blamed is not None:
+        message += _anonymous_lookup_note(ctx, blamed)
     try:
         ctx.cleanup()
     except Exception as e:
@@ -157,7 +169,28 @@ def run_test(cfg, test, full_trace=False, state=None, on_ctx=None):
     res.expected_failure = xf
     if failed_resp is not None:
         res.http_status, res.s3_code, res.request = failed_resp.http_status, failed_resp.s3_code, failed_resp.request
+    if blamed is not None:
+        res.request_id = blamed.header('x-amz-request-id') or blamed.header('x-amzn-requestid')
+        res.amz_id_2 = blamed.header('x-amz-id-2')
     return res
+
+
+def _anonymous_lookup_note(ctx, resp):
+    """An anonymous request answered 404 NoSuchBucket for a bucket this test created and
+    that still exists: say so, so the failure is not read as a missing bucket."""
+    if resp.label != 'anon' or resp.error_code != 'NoSuchBucket':
+        return ''
+    path = resp.url.split('?')[0].lstrip('/')
+    name = path.split('/', 1)[0]
+    if name not in [n for n, _ in ctx.bucket_list()]:
+        return ''
+    try:
+        if ctx.c.head_bucket(name).ok:
+            return (' (the bucket exists: HEAD by the main user returns 200, so the anonymous request '
+                    'could not find it)')
+    except Exception:
+        pass
+    return ''
 
 
 def _creds_for(cfg, label):

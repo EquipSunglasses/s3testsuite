@@ -20,6 +20,7 @@ def test_delete_multiple_objects(ctx):
     eq(s3xml.keys(ok(ctx.c.list_objects_v2(b)).xml()), [], 'remaining keys')
 
 
+@tags('core')
 def test_delete_multiple_quiet(ctx):
     """Quiet mode returns no Deleted entries on success."""
     b = ctx.new_bucket()
@@ -45,6 +46,17 @@ def test_delete_multiple_over_1000_keys(ctx):
     """More than 1000 keys in one request is rejected with 400 MalformedXML."""
     b = ctx.new_bucket()
     error(ctx.c.delete_objects(b, ['k%d' % i for i in range(1001)]), 400, ('MalformedXML', 'InvalidRequest'))
+
+
+@tags('limits')
+def test_delete_multiple_1000_keys(ctx):
+    """Exactly 1000 keys in one request is accepted: the batch size SDKs and the AWS CLI send."""
+    b = ctx.new_bucket()
+    keys = ['k%04d-%s' % (i, 'x' * 24) for i in range(1000)]
+    root = ok(ctx.c.delete_objects(b, keys), 'delete 1000 keys').xml()
+    errors = root.findall('Error')
+    eq(len(errors), 0, 'Error entries')
+    eq(len(root.findall('Deleted')), 1000, 'Deleted entries')
 
 
 def test_delete_multiple_malformed_xml(ctx):

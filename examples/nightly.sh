@@ -11,7 +11,7 @@
 # Each config should set [target] label (the name used in comparisons).
 # Environment:
 #   RESULTS_DIR  where results accumulate (default /var/lib/s3tests/results)
-#   TIER         smoke, standard or full (default full)
+#   TIER         smoke, core, standard or full (default full)
 #   KEEP_DAYS    delete run directories older than this (default 90; history.jsonl is kept)
 #   JOBS         parallel workers (default from each config)
 #

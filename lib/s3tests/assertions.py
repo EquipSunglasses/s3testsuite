@@ -30,6 +30,7 @@ class S3AssertionError(AssertionError):
         self.http_status = getattr(resp, 'status', None)
         self.s3_code = getattr(resp, 'error_code', None) if resp is not None else None
         self.request = ('%s %s' % (resp.method, resp.url.split('?')[0])) if resp is not None else None
+        self.resp = resp
 
 
 def skip(reason, category=NOT_CONFIGURED):

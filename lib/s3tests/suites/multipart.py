@@ -70,6 +70,7 @@ def test_multipart_single_small_part(ctx):
     eq(ok(ctx.c.get_object(b, 'mp')).body, chunks[0], 'body')
 
 
+@tags('core')
 def test_multipart_metadata_preserved(ctx):
     """Content-Type and user metadata given at initiate are on the completed object."""
     b = ctx.new_bucket()
@@ -80,6 +81,7 @@ def test_multipart_metadata_preserved(ctx):
     eq(r.header('x-amz-meta-src'), 'mpu', 'x-amz-meta-src')
 
 
+@tags('core')
 def test_multipart_list_parts(ctx):
     """ListParts returns part numbers, ETags and sizes."""
     b = ctx.new_bucket()
@@ -103,6 +105,7 @@ def test_multipart_list_parts_paging(ctx):
     eq([p.findtext('PartNumber') for p in root.findall('Part')], ['3'], 'second page')
 
 
+@tags('core')
 def test_multipart_list_uploads(ctx):
     """ListMultipartUploads shows in-progress uploads and filters by prefix."""
     b = ctx.new_bucket()
@@ -204,7 +207,21 @@ def test_multipart_get_part_number(ctx):
     uid, parts, chunks = _upload(ctx, b, 'mp', [ps, 100])
     _complete(ctx, b, 'mp', uid, parts)
     r = status(ctx.c.get_object(b, 'mp', query={'partNumber': '1'}), (200, 206))
-    eq(md5_hex(r.body), md5_hex(chunks[0]), 'part 1 body')
+    got = md5_hex(r.body)
+    if got != md5_hex(chunks[0]):
+        whole = b''.join(chunks)
+        if got == md5_hex(whole):
+            what = 'the whole object (%d bytes)' % len(whole)
+        elif got == md5_hex(chunks[1]):
+            what = 'part 2 (%d bytes)' % len(chunks[1])
+        elif whole.startswith(r.body):
+            what = 'the first %d bytes of the object' % len(r.body)
+        else:
+            what = '%d bytes that match no part' % len(r.body)
+        raise AssertionError('GET ?partNumber=1 returned %s instead of part 1 (%d bytes); HTTP %d, '
+                             'Content-Range %s, x-amz-mp-parts-count %s [%s]' % (
+                                 what, len(chunks[0]), r.status, r.header('content-range') or 'absent',
+                                 r.header('x-amz-mp-parts-count') or 'absent', r.describe()))
     eq(r.header('x-amz-mp-parts-count'), '2', 'x-amz-mp-parts-count')
 
 

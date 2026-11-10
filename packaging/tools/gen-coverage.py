@@ -18,6 +18,8 @@ from s3tests import __version__, runner  # noqa: E402
 
 TIER_INFO = (
     ('smoke', 'Core data path: buckets, put/get/head/delete, listing, multipart, copy, batch delete, presign.'),
+    ('core', 'Smoke plus everyday operations and their common errors: prefixes, v1 paging, headers, Content-MD5, '
+             'cross-bucket copy, upload and part listing, delete markers, tags.'),
     ('standard', 'What S3 applications commonly rely on; no slow, large, limit-probing or newer optional features.'),
     ('full', 'Every test, including ACLs, policy, CORS, SSE, Object Lock, limits and checksums.'),
 )
@@ -59,7 +61,7 @@ def main():
 
     all_tags = {}
     for t in tests:
-        for tag in t.tags - {t.module, 'smoke'}:
+        for tag in t.tags - {t.module, 'smoke', 'core'}:
             all_tags[tag] = all_tags.get(tag, 0) + 1
 
     e = html.escape
@@ -70,7 +72,7 @@ def main():
         rows_nav.append('<a href="#m-%s"><span>%s</span><b>%d</b></a>' % (m, e(title), len(ts)))
         trs = []
         for t in ts:
-            tags = sorted(t.tags - {t.module, 'smoke'})
+            tags = sorted(t.tags - {t.module, 'smoke', 'core'})
             chips = ''.join('<span class="chip" title="%s">%s</span>' % (e(NOTES.get(g, '')), e(g)) for g in tags)
             trs.append('<tr data-search="%s" data-tags="%s" data-tier="%s"><td class="id"><code>%s</code></td>'
                        '<td>%s</td><td class="tier"><span class="t t-%s">%s</span></td><td class="tags">%s</td></tr>' % (
@@ -140,7 +142,7 @@ input[type=search]{width:100%%;padding:9px 12px;border:1px solid var(--line);bor
 .tagbtn i{font-style:normal;color:var(--muted)}
 .tagbtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .tagbtn.on i{color:#e6fff7}
-.tiers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:24px}
+.tiers{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:24px}
 .tiercard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
 .tiercard b{font-size:22px;color:var(--accent);margin-right:8px}
 .tiercard p{margin:6px 0 0;color:var(--muted);font-size:13px}
@@ -152,6 +154,7 @@ input[type=search]{width:100%%;padding:9px 12px;border:1px solid var(--line);bor
 td.tier{width:1%%;white-space:nowrap}
 .t{font-size:12px;border-radius:4px;padding:1px 6px;border:1px solid var(--line)}
 .t-smoke{background:var(--accent);color:#fff;border-color:var(--accent)}
+.t-core{background:var(--chip);color:var(--chip-ink);border-color:var(--accent)}
 .t-standard{background:var(--chip);color:var(--chip-ink)}
 .t-full{color:var(--muted)}
 .shown{color:var(--muted);font-size:13px;margin-top:8px}
@@ -203,7 +206,7 @@ footer{color:var(--muted);font-size:13px;margin-top:24px}
   var q=document.getElementById('q'),shown=document.getElementById('shown');
   var rows=[].slice.call(document.querySelectorAll('tbody tr'));
   var mods=[].slice.call(document.querySelectorAll('.mod'));
-  var active={},tier='full',order={smoke:0,standard:1,full:2};
+  var active={},tier='full',order={smoke:0,core:1,standard:2,full:3};
   [].slice.call(document.querySelectorAll('.tierbtn')).forEach(function(b){
     b.addEventListener('click',function(){tier=b.getAttribute('data-tier');
       [].slice.call(document.querySelectorAll('.tierbtn')).forEach(function(o){o.classList.toggle('on',o===b)});apply()});

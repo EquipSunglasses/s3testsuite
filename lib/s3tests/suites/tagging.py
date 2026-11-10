@@ -13,6 +13,7 @@ def tagging_xml(tagmap):
     return xml_doc('Tagging', '<TagSet>%s</TagSet>' % inner)
 
 
+@tags('core')
 def test_object_tagging_roundtrip(ctx):
     """PUT/GET/DELETE ?tagging on an object."""
     b = ctx.new_bucket()
@@ -47,6 +48,16 @@ def test_object_tagging_key_too_long(ctx):
     b = ctx.new_bucket()
     ok(ctx.c.put_object(b, 'k', b'x'))
     error(ctx.c.put_object_sub(b, 'k', 'tagging', tagging_xml({'k' * 129: 'v'})), 400, ('InvalidTag', 'BadRequest'))
+
+
+@tags('limits')
+def test_object_tagging_at_limits(ctx):
+    """10 tags with 128-character keys and 256-character values are accepted and returned."""
+    b = ctx.new_bucket()
+    ok(ctx.c.put_object(b, 'k', b'x'))
+    tagmap = dict(('%02d' % i + 'k' * 126, 'v' * 256) for i in range(10))
+    ok(ctx.c.put_object_sub(b, 'k', 'tagging', tagging_xml(tagmap)), 'put 10 tags at maximum length')
+    eq(s3xml.tagset(ok(ctx.c.get_object_sub(b, 'k', 'tagging')).xml()), tagmap, 'tags')
 
 
 def test_object_tagging_missing_key(ctx):

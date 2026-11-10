@@ -68,6 +68,7 @@ def test_list_v2_keycount_and_name(ctx):
     eq(s3xml.truncated(root), False, 'IsTruncated')
 
 
+@tags('core')
 def test_list_entry_fields(ctx):
     """Each Contents entry has ETag, Size, LastModified and StorageClass."""
     b = ctx.new_bucket()
@@ -81,6 +82,7 @@ def test_list_entry_fields(ctx):
         true(bool(c.findtext('StorageClass')), '%s: StorageClass missing' % api)
 
 
+@tags('core')
 def test_list_empty_bucket(ctx):
     """An empty bucket lists no keys and is not truncated."""
     b = ctx.new_bucket()
@@ -90,6 +92,7 @@ def test_list_empty_bucket(ctx):
         eq(s3xml.truncated(root), False, '%s IsTruncated' % api)
 
 
+@tags('core')
 def test_list_prefix(ctx):
     """prefix filters keys."""
     b = _fill(ctx, ['logs/a', 'logs/b', 'logsx', 'other'])
@@ -115,6 +118,7 @@ def test_list_delimiter_slash(ctx):
         eq(root.findtext('Delimiter'), '/', '%s Delimiter echo' % api)
 
 
+@tags('core')
 def test_list_prefix_and_delimiter(ctx):
     """prefix plus delimiter lists one level below the prefix."""
     b = _fill(ctx, ['asdf', 'foo/bar', 'foo/baz/xyzzy', 'quux/thud'])
@@ -142,6 +146,7 @@ def test_list_delimiter_absent_from_keys(ctx):
         eq(s3xml.common_prefixes(root), [], '%s CommonPrefixes' % api)
 
 
+@tags('core')
 def test_list_v1_pagination(ctx):
     """ListObjects pages with max-keys and marker and returns every key once."""
     keys = ['k%02d' % i for i in range(7)]

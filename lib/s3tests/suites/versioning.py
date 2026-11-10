@@ -52,6 +52,7 @@ def test_versioned_puts_keep_all_versions(ctx):
     eq([v['VersionId'] for v in vs if v['IsLatest']], [v2], 'IsLatest')
 
 
+@tags('core')
 def test_get_response_has_version_id(ctx):
     """GET and HEAD on a versioned object return x-amz-version-id."""
     b = ctx.versioned_bucket()
@@ -60,6 +61,7 @@ def test_get_response_has_version_id(ctx):
     eq(ok(ctx.c.head_object(b, 'k')).header('x-amz-version-id'), vid, 'HEAD version id')
 
 
+@tags('core')
 def test_delete_creates_delete_marker(ctx):
     """DELETE without versionId adds a delete marker; GET then returns 404; data versions remain."""
     b = ctx.versioned_bucket()

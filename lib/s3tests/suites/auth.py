@@ -15,6 +15,7 @@ def test_wrong_secret_key(ctx):
     error(c.list_buckets(), 403, 'SignatureDoesNotMatch')
 
 
+@tags('core')
 def test_unknown_access_key(ctx):
     """An unknown access key returns 403 InvalidAccessKeyId."""
     c = ctx.custom_client('AKIAS3TESTSNOTREAL0', 'not-a-real-secret-key-000000000000000000')
@@ -82,6 +83,7 @@ def test_presigned_get(ctx):
 
 
 @tags('presign')
+@tags('core')
 def test_presigned_put(ctx):
     """A presigned PUT URL uploads an object."""
     b = ctx.new_bucket()

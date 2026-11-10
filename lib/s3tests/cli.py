@@ -15,9 +15,10 @@ from . import results as results_mod
 
 EPILOG = """examples:
   s3tests --check                      verify endpoint, TLS and credentials
-  s3tests --smoke                      21 core data-path tests, about a minute
-  s3tests --standard                   140 tests: what S3 applications commonly rely on
-  s3tests --full                       all 190 tests (default, or [run] tier)
+  s3tests --smoke                      21 basic data-path tests, about a minute
+  s3tests --core                       52 tests: smoke plus everyday operations and common errors
+  s3tests --standard                   141 tests: what S3 applications commonly rely on
+  s3tests --full                       all 193 tests (default, or [run] tier)
   s3tests --cleanup --dry-run          list leftover test buckets
   s3tests --cleanup --yes              delete them (only names starting with bucket_prefix)
   s3tests --recover                    clean up after runs that were killed or crashed
@@ -64,6 +65,7 @@ def build_parser():
     tier = p.add_mutually_exclusive_group()
     tier.add_argument('--tier', choices=runner.TIERS, help='test tier (default from [run] tier, else full)')
     tier.add_argument('--smoke', dest='tier', action='store_const', const='smoke', help='same as --tier smoke')
+    tier.add_argument('--core', dest='tier', action='store_const', const='core', help='same as --tier core')
     tier.add_argument('--standard', dest='tier', action='store_const', const='standard',
                       help='same as --tier standard')
     tier.add_argument('--full', dest='tier', action='store_const', const='full', help='same as --tier full')

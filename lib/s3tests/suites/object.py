@@ -66,6 +66,7 @@ def test_get_missing_key(ctx):
     error(ctx.c.get_object(ctx.new_bucket(), 'nope'), 404, 'NoSuchKey')
 
 
+@tags('core')
 def test_head_missing_key(ctx):
     """HEAD on a missing key returns 404."""
     error(ctx.c.head_object(ctx.new_bucket(), 'nope'), 404)
@@ -76,6 +77,7 @@ def test_get_from_missing_bucket(ctx):
     error(ctx.c.get_object(ctx.bucket_name(), 'k'), 404, 'NoSuchBucket')
 
 
+@tags('core')
 def test_put_to_missing_bucket(ctx):
     """PUT into a missing bucket returns 404 NoSuchBucket."""
     error(ctx.c.put_object(ctx.bucket_name(), 'k', b'x'), 404, 'NoSuchBucket')
@@ -89,6 +91,7 @@ def test_delete_object(ctx):
     error(ctx.c.get_object(b, 'k'), 404, 'NoSuchKey')
 
 
+@tags('core')
 def test_delete_missing_key_returns_204(ctx):
     """DELETE on a missing key is idempotent and returns 204."""
     status(ctx.c.delete_object(ctx.new_bucket(), 'never-existed'), 204, 'delete missing key')
@@ -117,6 +120,7 @@ def test_user_metadata_roundtrip(ctx):
     eq(r.header('x-amz-meta-empty-ish'), '-', 'x-amz-meta-empty-ish')
 
 
+@tags('core')
 def test_metadata_replaced_on_overwrite(ctx):
     """Overwriting an object without metadata drops the old metadata."""
     b = ctx.new_bucket()
@@ -125,6 +129,7 @@ def test_metadata_replaced_on_overwrite(ctx):
     eq(ok(ctx.c.head_object(b, 'k')).header('x-amz-meta-old'), None, 'old metadata')
 
 
+@tags('core')
 def test_standard_headers_roundtrip(ctx):
     """Content-Type, Cache-Control, Content-Disposition, Content-Language and Expires are stored."""
     b = ctx.new_bucket()
@@ -141,6 +146,7 @@ def test_standard_headers_roundtrip(ctx):
         eq(r.header(k), v, k)
 
 
+@tags('core')
 def test_default_content_type(ctx):
     """Objects stored without Content-Type get an octet-stream type."""
     b, _ = _obj(ctx)
@@ -149,6 +155,7 @@ def test_default_content_type(ctx):
 
 
 @tags('integrity')
+@tags('core')
 def test_content_md5_valid(ctx):
     """PUT with a correct Content-MD5 succeeds."""
     data = ctx.data(1000)
@@ -156,6 +163,7 @@ def test_content_md5_valid(ctx):
 
 
 @tags('integrity')
+@tags('core')
 def test_content_md5_mismatch(ctx):
     """PUT with a well-formed but wrong Content-MD5 returns 400 BadDigest."""
     b = ctx.new_bucket()
@@ -180,6 +188,7 @@ TRICKY_KEYS = [
 
 
 @tags('keys')
+@tags('core')
 def test_tricky_key_names(ctx):
     """Keys with reserved, encoded and non-ASCII characters round-trip and list exactly."""
     b = ctx.new_bucket()
@@ -408,6 +417,7 @@ def test_checksum_mismatch(ctx):
     error(ctx.c.head_object(b, 'k'), 404, what='object must not exist')
 
 
+@tags('core')
 def test_last_modified_is_recent(ctx):
     """Last-Modified is within 15 minutes of the client clock (detects clock skew on the cluster)."""
     b, _ = _obj(ctx)

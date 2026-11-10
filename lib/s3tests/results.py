@@ -16,8 +16,10 @@ Normalized outcome (`outcome`) is what comparisons use:
   error  ERROR (exception, timeout, connection problem)
   skip   SKIP, with skip_category saying why
 
-The pass rate is pass / (pass + fail + error); skips are excluded and
-counted separately. Additions to the schema add keys; a change that breaks
+The pass rate is pass / (pass + fail + error + not-implemented skips): a
+feature the server answers with 501 NotImplemented counts against it. Other
+skips (not configured, disabled by policy, not run) are excluded and counted
+separately. Additions to the schema add keys; a change that breaks
 readers bumps the version in `schema`.
 """
 
@@ -52,14 +54,17 @@ def fingerprint(test_ids):
 
 
 def pass_rate(counts):
-    denom = counts.get('pass', 0) + counts.get('fail', 0) + counts.get('error', 0)
+    denom = (counts.get('pass', 0) + counts.get('fail', 0) + counts.get('error', 0)
+             + counts.get('not_implemented', 0))
     return round(100.0 * counts.get('pass', 0) / denom, 1) if denom else None
 
 
 def _counts(records):
-    c = {'pass': 0, 'fail': 0, 'error': 0, 'skip': 0}
+    c = {'pass': 0, 'fail': 0, 'error': 0, 'skip': 0, 'not_implemented': 0}
     for r in records:
         c[r['outcome']] += 1
+        if r['outcome'] == 'skip' and r.get('skip_category') == 'not-implemented':
+            c['not_implemented'] += 1
     c['pass_rate'] = pass_rate(c)
     return c
 
@@ -113,6 +118,8 @@ def test_record(r, norm=lambda x: x):
         's3_code': r.s3_code,
         'failure_kind': failure_kind(r, norm),
         'request': norm(r.request),
+        'request_id': getattr(r, 'request_id', None),
+        'amz_id_2': getattr(r, 'amz_id_2', None),
         'message': norm((r.message or '').splitlines()[0][:500]) if r.message else '',
         'expected_failure': r.expected_failure,
         'rerun': bool(getattr(r, 'rerun', False)),

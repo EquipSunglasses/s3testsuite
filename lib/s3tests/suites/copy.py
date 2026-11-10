@@ -26,6 +26,7 @@ def test_copy_same_bucket(ctx):
     eq(ok(ctx.c.get_object(b, 'dst')).body, data, 'copied body')
 
 
+@tags('core')
 def test_copy_cross_bucket(ctx):
     """Copy to another bucket owned by the same user."""
     b, data = _src(ctx)
@@ -34,6 +35,7 @@ def test_copy_cross_bucket(ctx):
     eq(ok(ctx.c.get_object(b2, 'dst')).body, data, 'copied body')
 
 
+@tags('core')
 def test_copy_preserves_metadata(ctx):
     """Default metadata directive (COPY) keeps user metadata and Content-Type."""
     b, _ = _src(ctx, headers={'x-amz-meta-k': 'v', 'Content-Type': 'text/x-src'})
@@ -70,6 +72,7 @@ def test_copy_to_self_with_replace(ctx):
     eq(r.body, data, 'body unchanged')
 
 
+@tags('core')
 def test_copy_missing_source(ctx):
     """Copying a missing source key returns 404 NoSuchKey."""
     b = ctx.new_bucket()

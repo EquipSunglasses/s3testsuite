@@ -7,7 +7,7 @@ import threading
 import time
 
 from . import s3xml
-from .assertions import SkipTest, skip_if_disabled
+from .assertions import SkipTest, skip_if_disabled, S3AssertionError
 from .client import Credentials, x, xml_doc
 
 _id_cache = {}
@@ -153,8 +153,11 @@ class TestContext(object):
         load balancer) gets 404 NoSuchBucket. This sends HEAD until it succeeds
         bucket_ready_checks times in a row, each on a new connection so a load
         balancer can route it to a different node. Only 404 counts as not ready;
-        any other answer ends the wait and the test proceeds. A delay is reported
-        as a warning and counted in the run summary, never silently absorbed.
+        any other answer ends the wait and the test proceeds.
+
+        bucket_ready_timeout is a limit, not a grace period: a delay within it is
+        reported as a warning with the measured time, and a bucket still not
+        readable when it runs out fails the test as the platform's result.
         """
         timeout = self.cfg.bucket_ready_timeout
         need = self.cfg.bucket_ready_checks
@@ -187,9 +190,10 @@ class TestContext(object):
             if not ready:
                 BUCKET_READY['never_ready'] += 1
         if not ready:
-            self.warnings.append('bucket %s still returned 404 on HEAD %.0fs after CreateBucket succeeded'
-                                 % (name, waited))
-        elif misses:
+            raise S3AssertionError('bucket %s not readable %ds after CreateBucket succeeded: HEAD returned 404 '
+                                   'on all %d checks (limit bucket_ready_timeout = %ds)'
+                                   % (name, timeout, misses, timeout))
+        if misses:
             self.warnings.append('bucket %s returned 404 on HEAD for %.1fs after CreateBucket succeeded '
                                  '(%d of %d checks)' % (name, waited, misses, misses + streak))
 
@@ -267,6 +271,13 @@ class TestContext(object):
                 return r
             time.sleep(min(delay, max(0.0, window - (time.time() - t0))))
             delay = min(delay * 1.5, 3.0)
+
+    def last_response(self):
+        """The most recent response any of this test's clients received, or None."""
+        items = []
+        for c in self._clients.values():
+            items.extend(c.history)
+        return max(items, key=lambda r: getattr(r, 'started', 0)) if items else None
 
     def http_history(self, full=False):
         items = []

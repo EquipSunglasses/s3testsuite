@@ -36,11 +36,13 @@ def test_delete_public_access_block_keeps_bucket(ctx):
     ok(h, 'HEAD bucket after DELETE ?publicAccessBlock')
 
 
+@tags('core')
 def test_delete_missing_bucket(ctx):
     """DELETE on a missing bucket returns 404 NoSuchBucket."""
     error(ctx.c.delete_bucket(ctx.bucket_name()), 404, 'NoSuchBucket')
 
 
+@tags('core')
 def test_delete_nonempty_bucket(ctx):
     """DELETE on a bucket with objects returns 409 BucketNotEmpty."""
     b = ctx.new_bucket()
@@ -56,6 +58,7 @@ def test_delete_bucket_with_incomplete_upload(ctx):
     status(r, (204, 409), 'delete bucket with pending upload')
 
 
+@tags('core')
 def test_create_existing_bucket_same_owner(ctx):
     """Re-creating your own bucket returns 409 BucketAlreadyOwnedByYou (200 accepted for us-east-1 legacy)."""
     b = ctx.new_bucket()
@@ -92,6 +95,7 @@ def test_list_buckets_excludes_other_users(ctx):
     not_contains(s3xml.bucket_names(ok(ctx.c.list_buckets()).xml()), b, 'main user ListBuckets')
 
 
+@tags('core')
 def test_get_bucket_location(ctx):
     """GET ?location returns a LocationConstraint document."""
     b = ctx.new_bucket()

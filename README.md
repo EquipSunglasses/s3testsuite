@@ -7,7 +7,7 @@ packages is hard.
 - One installer file, `s3tests-VERSION.run`, for RHEL 7 to 10 and macOS. No
   package manager, network access or root needed.
 - Python standard library only: no pip, tox, pytest, boto or virtualenv.
-- 190 tests in three tiers (smoke, standard, full).
+- 193 tests in four tiers (smoke, core, standard, full).
 - Removes every bucket it creates and verifies this at the end of each run.
 - Results files for comparing solutions and tracking them over time.
 - Works on FIPS-enabled hosts.
@@ -29,25 +29,26 @@ packages is hard.
 
 ## Quick start
 
-The installer is `release/s3tests-1.4.4.run` in this repository; copy it to
+The installer is `release/s3tests-1.6.0.run` in this repository; copy it to
 the host and run it with `sh`.
 
 ```
-sh s3tests-1.4.4.run --user          # installs to ~/.local, creates ~/.s3tests.conf
+sh s3tests-1.6.0.run --user          # installs to ~/.local, creates ~/.s3tests.conf
 vi ~/.s3tests.conf                   # fill in endpoint, access_key, secret_key
 s3tests --check                      # TLS, DNS and credentials
-s3tests --smoke                      # 21 core tests, about a minute
-s3tests -j 8                         # all 190 tests
+s3tests --smoke                      # 21 basic tests, about a minute
+s3tests --core                       # 52 everyday operations, a few minutes
+s3tests -j 8                         # all 193 tests
 ```
 
 ## Install
 
-Copy `s3tests-1.4.4.run` to the host and run it with `sh`:
+Copy `s3tests-1.6.0.run` to the host and run it with `sh`:
 
 ```
-sh s3tests-1.4.4.run --user                 # just for you, no root needed
-sudo sh s3tests-1.4.4.run                   # for everyone on the host
-sudo sh s3tests-1.4.4.run --prefix /opt/s3tests
+sh s3tests-1.6.0.run --user                 # just for you, no root needed
+sudo sh s3tests-1.6.0.run                   # for everyone on the host
+sudo sh s3tests-1.6.0.run --prefix /opt/s3tests
 ```
 
 | install | command | config created |
@@ -74,8 +75,8 @@ run instead of this one.
 Two more options:
 
 ```
-sh s3tests-1.4.4.run --verify               # check the file's SHA-256, install nothing
-sh s3tests-1.4.4.run --extract /tmp/x       # unpack only, to inspect it first
+sh s3tests-1.6.0.run --verify               # check the file's SHA-256, install nothing
+sh s3tests-1.6.0.run --extract /tmp/x       # unpack only, to inspect it first
 ```
 
 The `.run` file is a short shell script followed by the install files. Their
@@ -198,7 +199,7 @@ the settings in effect; `s3tests --check` tests the endpoint, TLS and both users
 | target | `allow_insecure_sse` | `false` | run SSE-C tests over plain http |
 | main | `access_key`, `secret_key`, `session_token` | | primary user |
 | alt | `access_key`, `secret_key`, `principal_arn` | | second user |
-| run | `tier` | `full` | `smoke`, `standard` or `full` |
+| run | `tier` | `full` | `smoke`, `core`, `standard` or `full` |
 | run | `jobs` | `1` | parallel workers |
 | run | `include_tags`, `exclude_tags` | | default tag filters |
 | run | `large_object_mb`, `part_size_mb` | `16`, `5` | object sizes |
@@ -209,7 +210,7 @@ the settings in effect; `s3tests --check` tests the endpoint, TLS and both users
 | run | `final_cleanup_window` | `180` | seconds the end of a run keeps retrying buckets it could not remove |
 | run | `sweep_stale_buckets`, `stale_bucket_minutes` | `true`, `60` | remove test buckets left by earlier runs once they are this old |
 | run | `propagation_timeout` | `20` | seconds to wait for ACL and policy changes to take effect |
-| run | `bucket_ready_timeout`, `bucket_ready_checks` | `30`, `3` | after CreateBucket, wait up to this many seconds until HEAD succeeds this many times in a row (0 disables); see [Platform notes](#platform-notes) |
+| run | `bucket_ready_timeout`, `bucket_ready_checks` | `5`, `3` | after CreateBucket, HEAD must succeed this many times in a row within this many seconds, or the test fails (0 disables); see [Platform notes](#platform-notes) |
 | run | `max_runtime` | `0` | minutes before the run stops with cleanup (0 = no limit) |
 | run | `state_dir`, `auto_recover` | `~/.local/state/s3tests`, `true` | crash-recovery journals |
 | run | `lifecycle_wait_seconds` | `0` | enables the real lifecycle expiration test |
@@ -226,7 +227,7 @@ Command line flags (`--endpoint`, `--region`, `--addressing`, `--ca-bundle`,
 
 ```
 s3tests                                  the configured tier (default full)
-s3tests --smoke | --standard | --full    pick a tier
+s3tests --smoke | --core | --standard | --full   pick a tier
 s3tests multipart listing                tests whose id contains a word
 s3tests 'object.test_range_*'            glob on test ids
 s3tests -t versioning  /  -x slow,worm   only, or skip, tests with these tags
@@ -238,18 +239,29 @@ s3tests --list  /  --list-tags           what would run, and the tags
 ```
 
 Test ids are `module.test_name`. Naming a test or module on the command line
-searches all 190 tests, so `s3tests object.test_checksum_crc32` always works.
+searches all 193 tests, so `s3tests object.test_checksum_crc32` always works.
 
 | tier | tests | use it for |
 |---|---|---|
 | smoke | 21 | after deploys, upgrades, load balancer or certificate changes; monitoring probes |
-| standard | 140 | release qualification, scheduled runs |
-| full | 190 | platform evaluation, vendor comparison, before enabling a feature |
+| core | 52 | everyday usage check, a few minutes; a quick first look at a new platform |
+| standard | 141 | release qualification, scheduled runs |
+| full | 193 | platform evaluation, vendor comparison, before enabling a feature |
 
 Smoke covers the core data path: bucket create, list and delete; object put,
 get, head, overwrite, delete, metadata and range reads; listing with
 delimiters and paging; multipart complete and abort; copy; batch delete;
-versioning; signature rejection; and a presigned GET. Standard adds the rest of
+versioning; signature rejection; and a presigned GET. Core adds the next
+everyday operations and the errors applications most often meet: deleting a
+non-empty or missing bucket, re-creating your own bucket, bucket location;
+HEAD or GET of a missing key, PUT to a missing bucket, deleting a missing key;
+metadata replaced on overwrite, standard headers, default Content-Type,
+Content-MD5 accepted and rejected, awkward key names, Last-Modified; listing
+by prefix, empty buckets, prefix with delimiter, v1 paging and entry fields;
+copy across buckets, metadata kept on copy, copy of a missing source; listing
+multipart uploads and parts, metadata on multipart objects; quiet batch
+delete; an unknown access key; presigned PUT; delete markers and version ids;
+and object tags. Standard adds the rest of
 those areas plus tagging, lifecycle configuration and authentication, without
 slow, large, limit-probing or newer optional features. Full adds ACLs, bucket
 policy, CORS, server-side encryption and Object Lock.
@@ -269,7 +281,7 @@ A run ends with a summary like this:
 
 ```
 Results: 172 pass, 1 fail, 3 error, 14 skip (190 tests in 233.0s)
-Pass rate: 97.7% (172 of 176 attempted; expected failures count as failures)
+Pass rate: 97.7% (172 of 176 attempted; expected failures and features the server does not implement count as failures)
 Skipped: 9 not-configured, 5 disabled-by-policy
 Cleanup: 248 test bucket(s) created, 248 removed, 0 remain (verified against the endpoint)
 network: 2112 requests over 203 connections; retries: 2 connect, 0 stale keep-alive, 0 dropped reads, 0 SlowDown
@@ -281,7 +293,13 @@ Each failure shows the expected and actual result and the request:
 ```
 FAIL    0.18s  multipart.test_multipart_part_too_small
               request: expected HTTP 400 EntityTooSmall, got HTTP 200  [POST /s3tests-1a2b3c4d-1/mp?uploadId=... -> 200]
+              request id 0a282a29:19ed6e558c4:11353:384
 ```
+
+The request id (`x-amz-request-id`, with `x-amz-id-2` where the server sends
+one) identifies the failing response in the vendor's logs, so a failure can be
+raised without a `-vv` rerun. It is also in the summary's failure list and the
+results file.
 
 `--junit FILE` writes JUnit XML for CI dashboards and `--json FILE` writes the
 [results file](#results-file-format).
@@ -391,9 +409,11 @@ same build, which points to an unstable platform or network.
   when they differ.
 - Configure every solution the same way: a second user, https, and the same
   `exclude_tags`.
-- Pass rate is `pass / (pass + fail + error)`. Expected failures count as
-  failures, so one platform's list of known gaps cannot raise its score.
-- Skips are excluded from the pass rate and reported by category:
+- Pass rate is `pass / (pass + fail + error + not-implemented)`. Expected
+  failures count as failures, so one platform's list of known gaps cannot
+  raise its score, and a feature answered with 501 NotImplemented counts
+  against the platform, so missing features cannot raise it either.
+- Other skips are excluded from the pass rate and reported by category:
 
 | skip category | meaning |
 |---|---|
@@ -442,6 +462,7 @@ Tests are sorted by id and times are UTC.
      "skip_category", "duration_s",
      "failure_kind": "403 AccessDenied",   stable key for grouping failures
      "http_status": 403, "s3_code": "AccessDenied", "request": "GET /<bucket>/key",
+     "request_id", "amz_id_2",             x-amz-request-id and x-amz-id-2 of the failing response
      "message", "expected_failure", "rerun", "hung", "warnings", "http_trace"}
   ]
 }
@@ -521,17 +542,36 @@ configuration, so it never sends that DELETE to such a platform.
 `bucket.test_delete_public_access_block_keeps_bucket` checks for the behavior
 directly and fails with `deleted the bucket itself` where it occurs.
 
+**Anonymous requests and namespaces**
+
+Public-read objects, public bucket listings and CORS preflights are sent
+without credentials. A platform that finds a bucket's namespace from the
+credentials (Dell ObjectScale) cannot place such a request unless the host
+name carries the namespace, and answers 403 "Could not determine namespace
+from anonymous request" or, for `OPTIONS`, 404 NoSuchBucket. When an
+anonymous request gets 404 NoSuchBucket for a bucket the test created and the
+main user can still HEAD, the failure says `the bucket exists`. These are
+failures of the platform as deployed: a browser cannot add a vendor header to
+a preflight. Configure the namespace base URL and run with `addressing =
+virtual`, or, where public access is never allowed, list the tests under
+`[expected_failures]` with that reason (they still count as failures).
+
 **New buckets that return 404 NoSuchBucket**
 
 Some clustered platforms acknowledge CreateBucket before every node knows the
-bucket. A request that reaches another node in the next moment (often through
-a load balancer) gets 404 NoSuchBucket, so a test fails in setup although
-nothing is wrong with the operation it tests. To keep these failures out of
-the results, after each successful CreateBucket s3tests sends HEAD until it
-succeeds `bucket_ready_checks` times in a row (default 3), for up to
-`bucket_ready_timeout` seconds (default 30). Each check uses a new connection,
-so a load balancer can route it to a different node. Only 404 counts as not
-ready; any other answer ends the wait.
+bucket, so a request that reaches another node in the next moment gets 404
+NoSuchBucket. After each successful CreateBucket s3tests sends HEAD until it
+succeeds `bucket_ready_checks` times in a row (default 3), each on a new
+connection so a load balancer can route it to a different node. Only 404
+counts as not ready; any other answer ends the wait.
+
+`bucket_ready_timeout` (default 5 seconds) is a limit, not a grace period. A
+bucket that becomes readable within it passes, with the measured delay
+reported. A bucket still not readable when it runs out fails the test with
+`not readable 5s after CreateBucket succeeded`: an application gets the same
+404, so the delay is the platform's result. 5 seconds is generous: AWS and the
+platforms tested so far make new buckets readable immediately, and the margin
+allows for bucket metadata replicated between sites.
 
 The delay is measured, not hidden. Each affected test carries a warning such
 as `bucket <bucket> returned 404 on HEAD for 2.7s after CreateBucket succeeded`.
@@ -543,8 +583,6 @@ If 404s continue after the wait:
 
 - Raise `bucket_ready_checks` (to 5 or more) when the load balancer has many
   backend nodes, so more nodes are checked before a test starts.
-- Raise `bucket_ready_timeout` when `bucket visibility:` reports buckets that
-  were never readable.
 - Check the platform's consistency setting for bucket metadata and whether the
   load balancer keeps a client on one node. A 404 on a later request after the
   wait passed means the nodes still disagree; that is a finding to raise with
@@ -589,7 +627,8 @@ For the cross-user tests, add a second IAM user in `[alt]` with
 | a test "hung ... abandoned" | a request never completed; check the gateway or load balancer logs |
 | `Operation timed out` (Errno 60/110) | TCP connections to the endpoint are timing out (network, firewall connection limits, or the endpoint) |
 | `404 NoSuchBucket` in the ACL tests, with `DELETE ...?publicAccessBlock -> 204` just before it in `-vv` output | the platform deleted the bucket on that request; fixed in 1.4.4 (see [Platform notes](#platform-notes)) |
-| `404 NoSuchBucket` right after a bucket was created | the platform makes new buckets visible asynchronously; see [Platform notes](#platform-notes) and raise `bucket_ready_checks` or `bucket_ready_timeout` |
+| `not readable 5s after CreateBucket succeeded` | the platform took longer than the limit to make a new bucket usable; see [Platform notes](#platform-notes) |
+| `403 ... Could not determine namespace from anonymous request`, or `404 NoSuchBucket` with `the bucket exists` | anonymous requests cannot find the bucket's namespace; see Anonymous requests in [Platform notes](#platform-notes) |
 | "took Ns to take effect" | the platform applies ACL and policy changes asynchronously; raise `propagation_timeout` if tests fail |
 | `Cleanup:` line shows buckets remaining | they are retried on the next run, or run `s3tests --recover` |
 
@@ -622,9 +661,9 @@ the committed `.run` on Rocky Linux 8 and 9, AlmaLinux 10 and macOS and runs
 the self-test. To inspect the payload by hand:
 
 ```
-sh release/s3tests-1.4.4.run --extract /tmp/s3t       # unpacks only
-tail -n +$(awk '/^__S3TESTS_PAYLOAD__$/{print NR+1; exit}' release/s3tests-1.4.4.run) \
-    release/s3tests-1.4.4.run | tar tzf -              # lists files without running anything
+sh release/s3tests-1.6.0.run --extract /tmp/s3t       # unpacks only
+tail -n +$(awk '/^__S3TESTS_PAYLOAD__$/{print NR+1; exit}' release/s3tests-1.6.0.run) \
+    release/s3tests-1.6.0.run | tar tzf -              # lists files without running anything
 ```
 
 **Build** the installer from the source tree:
@@ -655,7 +694,7 @@ S3TESTS_HOME=lib bin/s3tests -c my.conf
 from ..assertions import eq, error, ok
 from ..runner import tags
 
-@tags('mytag')            # add 'smoke' to put it in the smoke tier
+@tags('mytag')            # add 'smoke' or 'core' to put it in that tier
 def test_something(ctx):
     """One-line description shown by --list and in reports."""
     b = ctx.new_bucket()                        # removed automatically

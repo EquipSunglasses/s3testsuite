@@ -109,6 +109,9 @@ def test_bucket_default_encryption(ctx):
                   '</ApplyServerSideEncryptionByDefault></Rule>')
     r = ctx.c.put_bucket_sub(b, 'encryption', cfg)
     skip_if_unimplemented(r, 'bucket encryption')
+    if not r.ok:
+        sent = cfg.decode('utf-8', 'replace') if isinstance(cfg, bytes) else cfg
+        ctx.warnings.append('PutBucketEncryption body sent: %s' % sent)
     ok(r, 'put encryption')
     root = ok(ctx.c.get_bucket_sub(b, 'encryption')).xml()
     eq(root.findtext('Rule/ApplyServerSideEncryptionByDefault/SSEAlgorithm'), 'AES256', 'SSEAlgorithm')

@@ -57,7 +57,7 @@ secret_key =
 # principal_arn = 
 
 [run]
-# smoke (21 core tests), standard (140), or full (190). --smoke/--standard/--full override.
+# smoke (21 tests), core (52), standard (141), or full (193). --smoke/--core/--standard/--full override.
 tier = full
 jobs = 4
 # Hard time limits. A test that runs past test_timeout is stopped at its next
@@ -85,13 +85,14 @@ stale_bucket_minutes = 60
 # Seconds to wait for ACL / policy / public access changes to take effect (AWS
 # needs a few seconds; 0 makes the checks strict).
 propagation_timeout = 20
-# After each successful CreateBucket, wait up to this many seconds for the
-# bucket to answer HEAD (clustered platforms can return 404 NoSuchBucket for a
-# moment while the new bucket reaches every node). The check must pass
+# After each successful CreateBucket, the bucket must answer HEAD within this
+# many seconds (clustered platforms can return 404 NoSuchBucket for a moment
+# while the new bucket reaches every node). The check must pass
 # bucket_ready_checks times in a row, each on a new connection so a load
-# balancer can send it to a different node. Delays are reported as warnings
-# and in the run summary. 0 disables the wait.
-bucket_ready_timeout = 30
+# balancer can send it to a different node. A delay within the limit is
+# reported with its measured time; past the limit the test fails. 0 disables
+# the check.
+bucket_ready_timeout = 5
 bucket_ready_checks = 3
 # Abort the whole run (with cleanup) after this many minutes (0 = no limit).
 max_runtime = 0
